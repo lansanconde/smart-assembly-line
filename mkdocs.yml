@@ -1,0 +1,52 @@
+site_name: Smart Assembly Line — Documentation
+site_description: Système IoT industriel AWS — Ligne d'assemblage aérospatiale intelligente
+site_author: Lansana CONDÉ
+docs_dir: docs
+
+theme:
+  name: material
+  language: fr
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Mode sombre
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Mode clair
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - toc.integrate
+
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+nav:
+  - Accueil: index.md
+  - Architecture:
+    - Vue globale: architecture/global.md
+    - Par composant: architecture/components.md
+    - Runbook: runbook/index.md
