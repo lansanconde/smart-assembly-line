@@ -2,6 +2,20 @@
 
 Document opérationnel vivant. Mis à jour à chaque nouveau composant déployé.
 
+!!! tip "Récupérer les IDs de vos ressources"
+    Les placeholders `<VPC_ID>`, `<SUBNET_*_ID>` etc. sont à remplacer par vos IDs réels.
+    Pour les retrouver rapidement :
+    ```bash
+    # VPC
+    aws ec2 describe-vpcs --filters "Name=tag:Name,Values=smart-assembly-vpc" --query "Vpcs[0].VpcId"
+
+    # Subnets
+    aws ec2 describe-subnets --filters "Name=tag:Name,Values=smart-assembly-subnet-*" --query "Subnets[*].{Nom:Tags[0].Value,ID:SubnetId}"
+
+    # Internet Gateway
+    aws ec2 describe-internet-gateways --filters "Name=tag:Name,Values=smart-assembly-igw" --query "InternetGateways[0].InternetGatewayId"
+    ```
+
 ---
 
 ## Terraform
@@ -73,13 +87,13 @@ aws ec2 describe-vpcs --filters "Name=tag:Name,Values=smart-assembly-vpc" \
 
 ### Vérifier les subnets
 ```powershell
-aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-0fe617a485579ad47" \
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=<VPC_ID>" \
   --query "Subnets[*].{Nom:Tags[0].Value,CIDR:CidrBlock,Public:MapPublicIpOnLaunch}"
 ```
 
 ### Vérifier les route tables et leurs associations
 ```powershell
-aws ec2 describe-route-tables --filters "Name=vpc-id,Values=vpc-0fe617a485579ad47" \
+aws ec2 describe-route-tables --filters "Name=vpc-id,Values=<VPC_ID>" \
   --query "RouteTables[*].{Nom:Tags[0].Value,Routes:Routes[*].DestinationCidrBlock,Subnets:Associations[*].SubnetId}"
 ```
 
