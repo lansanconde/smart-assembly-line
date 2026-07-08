@@ -68,7 +68,89 @@ flowchart TD
 
 ---
 
-## 3. DynamoDB — État temps réel des postes
+## 3. S3 — Data Lake
+
+### Problème adressé
+
+Les messages capteurs arrivent à raison de plusieurs milliers par heure. Il faut les conserver :
+
+- pour l'**analyse historique** (détection de dérives lentes sur semaines/mois)
+- pour la **conformité réglementaire** (traçabilité complète de chaque pièce)
+- pour le **futur ML** (entraînement de modèles de maintenance prédictive)
+
+DynamoDB stocke l'état *actuel* des postes — il n'est pas conçu pour l'historisation massive.
+S3 est le bon outil : stockage objet illimité, coût très faible, et intégration native avec Athena, Glue, SageMaker.
+
+### Architecture
+
+```mermaid
+flowchart LR
+    LAMBDA[Lambda
+StoreMetrics] -->|PutObject| BUCKET
+
+    subgraph BUCKET["S3 — assembly-line-raw-data"]
+        direction TB
+        PART["Partitionnement
+année/mois/jour/heure/"]
+        VERS["Versioning activé"]
+        KMS["Chiffrement SSE-KMS"]
+        LC["Lifecycle Policy"]
+    end
+
+    LC -->|"30 jours"| IA["S3 Standard-IA
+(accès rare)"]
+    LC -->|"90 jours"| GLACIER["S3 Glacier
+(archivage)"]
+
+    BUCKET -->|SQL| ATHENA[Amazon Athena
+Requêtes analytiques]
+```
+
+### Décisions de conception
+
+**Partitionnement par date : `année/mois/jour/heure/`**
+Chaque objet S3 est stocké sous un chemin du type `2026/07/05/14/poste-1_1234567890.json`.
+Sans partitionnement, Athena scanne le bucket entier pour chaque requête — coût et latence prohibitifs.
+Avec ce partitionnement, une requête sur une heure de données ne lit que `1/8760ème` du bucket.
+
+**Versioning activé**
+En contexte réglementaire aérospatial, une suppression accidentelle de données de traçabilité peut entraîner un écart d'audit.
+Le versioning conserve toutes les versions de chaque objet — une suppression crée un `DeleteMarker`, pas une destruction définitive.
+
+**Chiffrement SSE-KMS**
+Les données capteurs peuvent contenir des informations sur les cadences de production — sensibles commercialement.
+SSE-KMS chiffre chaque objet avec une clé KMS gérée par AWS. Avantage sur SSE-S3 : audit complet des accès à la clé via CloudTrail.
+
+**Lifecycle Policy — optimisation des coûts**
+Les données fraîches (< 30 jours) sont en `Standard` — accès fréquent pour le monitoring.
+Après 30 jours → `Standard-IA` (Infrequent Access) : même durabilité, 40% moins cher, accès facturé à l'utilisation.
+Après 90 jours → `Glacier` : archivage long terme réglementaire, 80% moins cher que Standard, récupération en quelques heures.
+
+**Block Public Access activé**
+Aucun objet du data lake ne doit être accessible publiquement, même par erreur de configuration.
+Le `Block Public Access` est un verrou au niveau bucket — il écrase toute ACL ou policy qui tenterait d'ouvrir l'accès public.
+
+### Tables des classes de stockage
+
+| Classe | Délai | Usage | Coût relatif |
+|---|---|---|---|
+| S3 Standard | 0 – 30 jours | Données fraîches, accès fréquent | $$$ |
+| S3 Standard-IA | 30 – 90 jours | Historique récent, accès rare | $$ |
+| S3 Glacier | > 90 jours | Archivage réglementaire | $ |
+
+### Trade-off assumé
+
+**S3 vs DynamoDB pour l'historique**
+DynamoDB pourrait stocker l'historique avec un sort key `timestamp`, mais le coût explose à grande échelle (facturation à la lecture/écriture par item).
+S3 facture au stockage et à la requête Athena uniquement — largement plus économique pour des volumes d'archives.
+
+**Athena vs une base analytique dédiée (Redshift)**
+Athena est serverless : pas de cluster à gérer, paiement à la requête.
+Redshift serait justifié pour des dashboards temps réel avec requêtes complexes en continu — pas le besoin dominant ici.
+
+---
+
+## 4. DynamoDB — État temps réel des postes
 
 DynamoDB stocke l'état courant de chaque poste. Accès en millisecondes, scalabilité native.
 
@@ -91,30 +173,6 @@ erDiagram
 - **Partition key = `id_poste`** : chaque poste est une entité distincte. Pas de hot partition car les postes sont indépendants et équitablement sollicités.
 - **On-demand billing** : trafic variable selon les shifts de production. Pas de capacité provisionnée à gérer.
 - **Un seul item par poste** : on écrase l'état à chaque message (`PutItem`). L'historique complet est dans S3, pas dans DynamoDB. DynamoDB = état actuel uniquement.
-
----
-
-## 4. S3 — Data Lake
-
-S3 stocke tous les messages bruts pour analyse historique, audit réglementaire et futur ML.
-
-```mermaid
-flowchart LR
-    LAMBDA[Lambda\nStoreMetrics] -->|PutObject| S3
-
-    subgraph S3["S3 — assembly-line-raw-data"]
-        PREFIX[Partitionnement\nannée/mois/jour/heure/]
-        VERS[Versioning activé]
-        KMS[Chiffrement SSE-KMS]
-        LC[Lifecycle Policy\nStandard → IA 30j\nIA → Glacier 90j]
-    end
-```
-
-**Décisions de conception :**
-
-- **Partitionnement par date** : `s3://assembly-line-raw-data/2026/07/05/14/poste-1_1234567890.json`. Permet à Athena de lire uniquement la partition pertinente sans scanner tout le bucket.
-- **Versioning** : protection contre les suppressions accidentelles. Obligatoire en contexte réglementaire aérospatial.
-- **Lifecycle** : les données > 30 jours passent en S3-IA (moins cher, accès rare). > 90 jours en Glacier (archivage long terme). Optimisation coût sans perte de données.
 
 ---
 

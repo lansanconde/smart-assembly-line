@@ -3,6 +3,9 @@ site_description: Système IoT industriel AWS — Ligne d'assemblage aérospatia
 site_author: Lansana CONDÉ
 docs_dir: docs
 
+extra_css:
+  - stylesheets/extra.css
+
 theme:
   name: material
   language: fr
@@ -49,4 +52,4 @@ nav:
   - Architecture:
     - Vue globale: architecture/global.md
     - Par composant: architecture/components.md
-    - Runbook: runbook/index.md
+  - Runbook: runbook/index.md
