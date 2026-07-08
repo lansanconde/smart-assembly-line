@@ -114,7 +114,7 @@ Sans partitionnement, Athena scanne le bucket entier pour chaque requête — co
 Avec ce partitionnement, une requête sur une heure de données ne lit que `1/8760ème` du bucket.
 
 **Versioning activé**
-En contexte réglementaire aérospatial, une suppression accidentelle de données de traçabilité peut entraîner un écart d'audit.
+En contexte réglementaire système industriel critique, une suppression accidentelle de données de traçabilité peut entraîner un écart d'audit.
 Le versioning conserve toutes les versions de chaque objet — une suppression crée un `DeleteMarker`, pas une destruction définitive.
 
 **Chiffrement SSE-KMS**

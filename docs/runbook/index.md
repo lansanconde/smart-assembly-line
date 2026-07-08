@@ -127,6 +127,48 @@ git reset --soft HEAD~1
 
 ---
 
+## S3
+
+### Vérifier le versioning du bucket
+```bash
+aws s3api get-bucket-versioning --bucket smart-assembly-raw-data-<ACCOUNT_ID>
+```
+Réponse attendue : `{ "Status": "Enabled" }`
+
+### Vérifier le chiffrement
+```bash
+aws s3api get-bucket-encryption --bucket smart-assembly-raw-data-<ACCOUNT_ID>
+```
+
+### Vérifier le block public access
+```bash
+aws s3api get-public-access-block --bucket smart-assembly-raw-data-<ACCOUNT_ID>
+```
+Les 4 valeurs doivent être `true`.
+
+### Lister les objets d'une partition
+```bash
+aws s3 ls s3://smart-assembly-raw-data-<ACCOUNT_ID>/YYYY/MM/DD/HH/
+```
+
+### Uploader un objet de test
+```bash
+echo '{"id_poste":"poste-1","vibration":1.24,"timestamp":"2026-07-08T10:00:00Z"}' > test.json
+aws s3 cp test.json s3://smart-assembly-raw-data-<ACCOUNT_ID>/2026/07/08/10/poste-1_test.json
+```
+
+### Supprimer un objet de test
+```bash
+aws s3 rm s3://smart-assembly-raw-data-<ACCOUNT_ID>/2026/07/08/10/poste-1_test.json
+```
+
+### Lister toutes les versions d'un objet (versioning)
+```bash
+aws s3api list-object-versions   --bucket smart-assembly-raw-data-<ACCOUNT_ID>   --prefix 2026/07/08/10/poste-1_test.json
+```
+
+---
+
 ## Coûts AWS
 
 ### Voir une estimation des coûts du mois en cours
