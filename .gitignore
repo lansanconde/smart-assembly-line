@@ -8,5 +8,5 @@ infra/.terraform.lock.hcl
 infra/secrets.tfvars
 *.tfvars
 
-
-
+# Certificats IoT — JAMAIS commité (clés privées)
+iot-simulator/certs/

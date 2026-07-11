@@ -1,6 +1,12 @@
 # Smart Assembly Line
 
-**Système IoT industriel AWS — Ligne d'assemblage aérospatiale intelligente**
+<div class="hero">
+
+# Smart Assembly Line
+
+Architecture IA · IoT · AWS
+
+</div>
 
 ---
 

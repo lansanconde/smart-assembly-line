@@ -169,6 +169,89 @@ aws s3api list-object-versions   --bucket smart-assembly-raw-data-<ACCOUNT_ID>  
 
 ---
 
+## DynamoDB
+
+!!! tip "JSON sous PowerShell"
+    Utilise `[System.IO.File]::WriteAllText` pour créer les fichiers JSON sans BOM,
+    puis passe-les à AWS CLI via `file://fichier.json`.
+
+### Vérifier que la table existe
+```bash
+aws dynamodb describe-table --table-name machine_state   --query "Table.{Nom:TableName,Statut:TableStatus,Billing:BillingModeSummary.BillingMode}"
+```
+
+### Insérer un item (PowerShell)
+```powershell
+[System.IO.File]::WriteAllText("$PWD\item.json", '{"id_poste":{"S":"poste-1"},"statut":{"S":"OK"},"vibration_last":{"N":"1.24"},"temperature_last":{"N":"72.3"},"timestamp_last":{"S":"2026-07-08T10:00:00Z"}}')
+aws dynamodb put-item --table-name machine_state --item file://item.json
+```
+
+### Lire un item par clé
+```powershell
+[System.IO.File]::WriteAllText("$PWD\key.json", '{"id_poste":{"S":"poste-1"}}')
+aws dynamodb get-item --table-name machine_state --key file://key.json
+```
+
+### Supprimer un item
+```bash
+aws dynamodb delete-item --table-name machine_state --key file://key.json
+```
+
+### Scanner tous les items de la table (attention — coûteux en production)
+```bash
+aws dynamodb scan --table-name machine_state
+```
+
+### Vérifier le PITR (Point-in-Time Recovery)
+```bash
+aws dynamodb describe-continuous-backups --table-name machine_state   --query "ContinuousBackupsDescription.PointInTimeRecoveryDescription"
+```
+
+## IoT Core
+
+### Vérifier les ressources IoT
+
+```bash
+# Lister les Things
+aws iot list-things
+
+# Lister les certificats
+aws iot list-certificates
+
+# Vérifier les policies attachées à un certificat
+aws iot list-principal-policies \
+  --principal arn:aws:iot:eu-west-3:169237360990:cert/<CERT_ID>
+
+# Lister les Things attachés à un certificat
+aws iot list-principal-things \
+  --principal arn:aws:iot:eu-west-3:169237360990:cert/<CERT_ID>
+```
+
+### Endpoint IoT
+
+```bash
+aws iot describe-endpoint --endpoint-type iot:Data-ATS
+```
+
+### Tester la connexion MQTT
+
+1. Console AWS → IoT Core → **MQTT Test Client**
+2. Subscribe to topic : `assembly-line/poste_1/metrics`
+3. Lancer le simulateur :
+
+```bash
+cd iot-simulator
+python publish_vibration.py
+```
+
+### Attacher une policy à un certificat
+
+```bash
+aws iot attach-policy \
+  --policy-name smart-assembly-device-policy \
+  --target arn:aws:iot:eu-west-3:169237360990:cert/<CERT_ID>
+```
+
 ## Coûts AWS
 
 ### Voir une estimation des coûts du mois en cours

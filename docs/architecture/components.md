@@ -2,6 +2,7 @@
 
 ---
 
+
 ## 1. AWS IoT Core — Connectivité terrain
 
 IoT Core est le point d'entrée de tous les messages capteurs. Il gère l'authentification des devices, le routage des messages et la synchronisation d'état.
@@ -33,6 +34,22 @@ flowchart LR
 - **mTLS** : chaque device s'authentifie avec son propre certificat X.509. Pas de mot de passe. Si un device est compromis, on révoque uniquement son certificat.
 - **Device Shadow** : état persistant du device côté cloud. Si le device se déconnecte, l'état reste accessible. Utile pour connaître le dernier état connu d'un poste.
 - **Rules Engine** : filtre SQL sur les topics. `SELECT * FROM 'assembly-line/+/metrics'` capte tous les postes en un seul pattern.
+
+---
+
+## 2. AWS IoT Core — Connectivité terrain
+
+### Problème adressé
+
+Les capteurs terrain (vibration, température, pression) doivent envoyer leurs mesures vers le cloud de façon **sécurisée, fiable et scalable**.
+
+Le problème d'une connexion directe vers une API REST classique :
+- Pas de gestion native de la déconnexion/reconnexion réseau
+- Pas d'authentification device sans infrastructure PKI à maintenir
+- Pas de routage intelligent des messages vers plusieurs consommateurs
+- Pas de persistance de l'état device côté cloud
+
+AWS IoT Core résout ces quatre problèmes en un seul service managé.
 
 ---
 
@@ -75,7 +92,7 @@ flowchart TD
 Les messages capteurs arrivent à raison de plusieurs milliers par heure. Il faut les conserver :
 
 - pour l'**analyse historique** (détection de dérives lentes sur semaines/mois)
-- pour la **conformité réglementaire** (traçabilité complète de chaque pièce)
+- pour la **conformité réglementaire** aérospatiale (traçabilité complète de chaque pièce)
 - pour le **futur ML** (entraînement de modèles de maintenance prédictive)
 
 DynamoDB stocke l'état *actuel* des postes — il n'est pas conçu pour l'historisation massive.
@@ -106,7 +123,7 @@ année/mois/jour/heure/"]
 Requêtes analytiques]
 ```
 
-### Décisions de conception
+### Décisions de conception justifiées
 
 **Partitionnement par date : `année/mois/jour/heure/`**
 Chaque objet S3 est stocké sous un chemin du type `2026/07/05/14/poste-1_1234567890.json`.
@@ -114,7 +131,7 @@ Sans partitionnement, Athena scanne le bucket entier pour chaque requête — co
 Avec ce partitionnement, une requête sur une heure de données ne lit que `1/8760ème` du bucket.
 
 **Versioning activé**
-En contexte réglementaire système industriel critique, une suppression accidentelle de données de traçabilité peut entraîner un écart d'audit.
+En contexte réglementaire aérospatial, une suppression accidentelle de données de traçabilité peut entraîner un écart d'audit.
 Le versioning conserve toutes les versions de chaque objet — une suppression crée un `DeleteMarker`, pas une destruction définitive.
 
 **Chiffrement SSE-KMS**
@@ -152,27 +169,122 @@ Redshift serait justifié pour des dashboards temps réel avec requêtes complex
 
 ## 4. DynamoDB — État temps réel des postes
 
-DynamoDB stocke l'état courant de chaque poste. Accès en millisecondes, scalabilité native.
+### Problème adressé
+
+Le système a besoin d'un accès **instantané** à l'état courant de chaque poste : statut, dernière mesure, dernière anomalie.
+S3 n'est pas adapté — il est conçu pour stocker, pas pour répondre en millisecondes à une requête par clé.
+RDS (PostgreSQL/MySQL) peut le faire, mais introduit un schéma rigide, un serveur à maintenir, et une latence plus variable.
+
+DynamoDB répond à ce besoin précis : **accès par clé primaire en < 10ms**, scalabilité automatique, zéro serveur à opérer.
+
+### Architecture
+
+```mermaid
+flowchart LR
+    LAMBDA[Lambda
+AnalyzeVibration] -->|PutItem| DDB
+
+    subgraph DDB["DynamoDB — machine_state"]
+        direction TB
+        PK["Partition Key
+id_poste"]
+        ATTRS["Attributs
+statut · vibration_last
+temperature_last · pression_last
+timestamp_last · anomalie_type
+anomalies_count"]
+    end
+
+    API[Spring Boot API] -->|GetItem
+id_poste=poste-1| DDB
+    DDB -->|État courant| API
+```
+
+### Modèle de données
 
 ```mermaid
 erDiagram
     MACHINE_STATE {
         string id_poste PK
         string statut
-        float vibration_last
-        float temperature_last
-        float pression_last
+        float  vibration_last
+        float  temperature_last
+        float  pression_last
         string timestamp_last
         string anomalie_type
-        int anomalie_count
+        int    anomalies_count
     }
+```
+
+| Attribut | Type | Description |
+|---|---|---|
+| `id_poste` | String (PK) | Identifiant unique du poste — `poste-1`, `poste-2`... |
+| `statut` | String | `OK`, `WARN`, `CRITICAL` |
+| `vibration_last` | Number | Dernière mesure vibration (m/s²) |
+| `temperature_last` | Number | Dernière mesure température (°C) |
+| `pression_last` | Number | Dernière mesure pression (bar) |
+| `timestamp_last` | String | ISO 8601 — horodatage de la dernière mesure |
+| `anomalie_type` | String | Type d'anomalie détectée (`VIBRATION`, `TEMP`, `null`) |
+| `anomalies_count` | Number | Compteur d'anomalies depuis la dernière remise à zéro |
+
+### Décisions de conception justifiées
+
+**Partition key = `id_poste` — pas de hot partition**
+Une hot partition se produit quand trop de requêtes ciblent la même clé de partition simultanément.
+Ici chaque poste est indépendant et sollicité à fréquence identique (une mesure toutes les 2 secondes par poste).
+La charge est distribuée équitablement sur toutes les partitions — pas de risque de throttling.
+
+**On-demand billing — pas de capacité provisionnée**
+Le trafic varie selon les shifts : intense en journée, quasi nul la nuit.
+En capacité provisionnée, on paie les unités réservées même quand la table est idle.
+On-demand facture à la requête — optimal pour un trafic variable et imprévisible.
+
+**Un seul item par poste — écrasement à chaque message**
+DynamoDB n'est pas un historique — c'est une **vue courante**.
+Chaque `PutItem` écrase l'item existant avec l'état le plus récent.
+L'historique complet est dans S3, interrogeable via Athena.
+Ce partage de responsabilité (état actuel → DynamoDB, historique → S3) est un pattern fondamental des architectures event-driven.
+
+**Pas de sort key sur cette table**
+Une sort key permettrait de stocker plusieurs items par poste (ex : historique dans DynamoDB).
+Ce n'est pas le choix retenu — on garde DynamoDB simple et rapide, S3 pour l'historique.
+Si le besoin évolue vers un historique court terme (dernières 24h) dans DynamoDB, on ajoutera une GSI avec `timestamp` comme sort key.
+
+### Trade-offs
+
+**DynamoDB vs RDS**
+RDS permettrait des requêtes SQL complexes (jointures, agrégats multi-postes).
+Mais on ne fait ici que des `GetItem` et `PutItem` par clé — RDS serait surdimensionné et plus coûteux à opérer.
+Si un module de reporting réglementaire avec jointures complexes émerge, RDS redevient pertinent.
+
+**DynamoDB vs Redis (ElastiCache)**
+Redis serait encore plus rapide (< 1ms) mais volatil sans persistance configurée.
+DynamoDB est durable par défaut — les données survivent à un redémarrage, Redis non (sans AOF/RDB).
+Pour un système critique industriel, la durabilité prime sur la microseconde de latence gagnée.
+
+---
+
+## 4. S3 — Data Lake
+
+S3 stocke tous les messages bruts pour analyse historique, audit réglementaire et futur ML.
+
+```mermaid
+flowchart LR
+    LAMBDA[Lambda\nStoreMetrics] -->|PutObject| S3
+
+    subgraph S3["S3 — assembly-line-raw-data"]
+        PREFIX[Partitionnement\nannée/mois/jour/heure/]
+        VERS[Versioning activé]
+        KMS[Chiffrement SSE-KMS]
+        LC[Lifecycle Policy\nStandard → IA 30j\nIA → Glacier 90j]
+    end
 ```
 
 **Décisions de conception :**
 
-- **Partition key = `id_poste`** : chaque poste est une entité distincte. Pas de hot partition car les postes sont indépendants et équitablement sollicités.
-- **On-demand billing** : trafic variable selon les shifts de production. Pas de capacité provisionnée à gérer.
-- **Un seul item par poste** : on écrase l'état à chaque message (`PutItem`). L'historique complet est dans S3, pas dans DynamoDB. DynamoDB = état actuel uniquement.
+- **Partitionnement par date** : `s3://assembly-line-raw-data/2026/07/05/14/poste-1_1234567890.json`. Permet à Athena de lire uniquement la partition pertinente sans scanner tout le bucket.
+- **Versioning** : protection contre les suppressions accidentelles. Obligatoire en contexte réglementaire aérospatial.
+- **Lifecycle** : les données > 30 jours passent en S3-IA (moins cher, accès rare). > 90 jours en Glacier (archivage long terme). Optimisation coût sans perte de données.
 
 ---
 

@@ -1,175 +1,206 @@
 /* ============================================================
-   Smart Assembly Line — Custom Theme
-   Industrie 4.0 / Dark Tech / Précision industrielle
+   SMART ASSEMBLY LINE — AWS + INDUSTRY 4.0 HYBRID
+   Clean Cloud + Subtle Industrial Tech
    ============================================================ */
 
-/* --- Palette & variables custom --- */
 :root {
-  --md-primary-fg-color:        #1a237e;  /* Indigo profond */
-  --md-primary-fg-color--light: #3949ab;
-  --md-primary-fg-color--dark:  #0d1642;
-  --md-accent-fg-color:         #00b0ff;  /* Bleu électrique */
+  --aws-blue: #232F3E;
+  --aws-light-blue: #4A90E2;
+  --aws-orange: #FF9900;
+  --aws-bg: #F8FAFC;
+  --aws-text: #1A2A3A;
+  --aws-border: #E5EAF0;
 
-  --sal-border:     #00b0ff33;
-  --sal-glow:       #00b0ff22;
-  --sal-code-bg:    #0a0e1a;
-  --sal-tag-bg:     #1a237e22;
+  --grid-color: rgba(74,144,226,0.05);
 }
 
-/* --- Navigation — barre latérale épurée --- */
-.md-nav__title {
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--md-accent-fg-color);
-  font-weight: 700;
+/* ================= GLOBAL ================= */
+.md-main {
+  background: var(--aws-bg);
+  position: relative;
 }
 
-.md-nav__link--active {
-  border-left: 2px solid var(--md-accent-fg-color);
-  padding-left: 0.6rem;
-  color: var(--md-accent-fg-color) !important;
+/* 🔥 GRID INDUSTRY 4.0 (SUBTIL) */
+.md-main::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 80px 80px;
+  pointer-events: none;
+  z-index: 0;
 }
 
-/* --- Header — ligne de précision --- */
+.md-content {
+  position: relative;
+  z-index: 1;
+}
+
+.md-typeset {
+  color: var(--aws-text);
+  font-family: 'Inter', sans-serif;
+}
+
+/* ================= HEADER ================= */
 .md-header {
-  border-bottom: 1px solid var(--sal-border);
-  backdrop-filter: blur(8px);
+  background: var(--aws-blue);
 }
 
 .md-header__title {
-  letter-spacing: 0.05em;
+  color: white;
   font-weight: 600;
 }
 
-/* --- Contenu principal --- */
+.md-header__topic {
+  color: var(--aws-orange);
+}
+
+/* ================= SIDEBAR ================= */
+.md-sidebar {
+  background: white;
+  border-right: 1px solid var(--aws-border);
+}
+
+.md-nav__link {
+  color: #445566;
+}
+
+.md-nav__link:hover {
+  color: var(--aws-blue);
+}
+
+.md-nav__link--active {
+  color: var(--aws-orange);
+  font-weight: 600;
+}
+
+/* ================= HERO ================= */
+.hero {
+  background: white;
+  padding: 3rem 2rem;
+  border-bottom: 1px solid var(--aws-border);
+}
+
+.hero h1 {
+  font-size: 2.5rem;
+  color: var(--aws-blue);
+}
+
+.hero-subtitle {
+  color: #5A6B7C;
+}
+
+.hero-tags span {
+  background: #EEF3F8;
+  border: 1px solid var(--aws-border);
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  margin-right: 0.5rem;
+}
+
+/* ================= TITLES ================= */
 .md-content h1 {
-  border-bottom: 2px solid var(--md-accent-fg-color);
-  padding-bottom: 0.4rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  color: var(--aws-blue);
+  border-bottom: 2px solid var(--aws-border);
 }
 
 .md-content h2 {
-  border-left: 3px solid var(--md-accent-fg-color);
-  padding-left: 0.75rem;
-  margin-top: 2rem;
+  color: var(--aws-blue);
 }
 
-.md-content h3 {
-  color: var(--md-primary-fg-color--light);
-  font-size: 0.95rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
+/* ================= ARCH CARDS ================= */
+.arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px,1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
 }
 
-/* --- Blocs de code — style terminal industriel --- */
+.arch-card {
+  background: white;
+  border: 1px solid var(--aws-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: 0.2s ease;
+  position: relative;
+}
+
+/* effet tech subtil */
+.arch-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--aws-light-blue);
+  opacity: 0.3;
+}
+
+.arch-card:hover {
+  border-color: var(--aws-light-blue);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+}
+
+.arch-card h3 {
+  color: var(--aws-blue);
+}
+
+/* ================= HIGHLIGHT ================= */
+.highlight-box {
+  background: white;
+  border-left: 4px solid var(--aws-orange);
+  padding: 1.2rem;
+  border-radius: 6px;
+  border: 1px solid var(--aws-border);
+}
+
+/* ================= TABLE ================= */
+.md-typeset table {
+  border: 1px solid var(--aws-border);
+  background: white;
+}
+
+.md-typeset th {
+  background: #F1F5F9;
+  color: var(--aws-blue);
+}
+
+/* ================= CODE ================= */
 .md-typeset pre {
-  background: var(--sal-code-bg) !important;
-  border: 1px solid var(--sal-border);
-  border-radius: 4px;
-  box-shadow: 0 0 12px var(--sal-glow);
+  background: #0F172A;
+  color: #E2E8F0;
+  border-radius: 6px;
 }
 
-.md-typeset code {
-  background: var(--sal-tag-bg);
-  border-radius: 3px;
-  font-size: 0.82em;
-  padding: 0.1em 0.4em;
-  color: var(--md-accent-fg-color);
-}
-
-pre code {
-  color: #f5f5f5 !important;
-}
-
-.md-typeset pre > code {
-  color: #f5f5f5 !important;
-  background: transparent !important;
-}
-
-.highlight span,
-.highlight span.k,
-.highlight span.kd,
-.highlight span.nb,
-.highlight span.nv,
-.highlight span.o,
-.highlight span.p,
-.highlight span.s,
-.highlight span.s1,
-.highlight span.s2,
-.highlight span.m,
-.highlight span.c,
-.highlight span.c1 {
-  color: #f5f5f5 !important;
-}
-
-/* Commentaires — légèrement atténués mais lisibles */
-.highlight span.c,
-.highlight span.c1,
-.highlight span.cm {
-  color: #90caf9 !important;
-  font-style: italic;
-}
-
-/* Strings — vert clair */
-.highlight span.s,
-.highlight span.s1,
-.highlight span.s2 {
-  color: #a5d6a7 !important;
-}
-
-/* --- Tableaux — lisibilité --- */
-.md-typeset table:not([class]) {
-  border: 1px solid var(--sal-border);
-  border-radius: 4px;
-  overflow: hidden;
-  font-size: 0.85rem;
-}
-
-.md-typeset table:not([class]) th {
-  background: var(--md-primary-fg-color);
-  color: #ffffff;
-  letter-spacing: 0.06em;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-}
-
-.md-typeset table:not([class]) tr:hover {
-  background: var(--sal-glow);
-}
-
-/* --- Admonitions — signalétique industrielle --- */
-.md-typeset .admonition,
-.md-typeset details {
-  border-radius: 4px;
-  border-left-width: 3px;
-  font-size: 0.88rem;
-}
-
-.md-typeset .admonition.tip,
-.md-typeset details.tip {
-  border-color: var(--md-accent-fg-color);
-}
-
-/* --- Pied de page --- */
-.md-footer {
-  border-top: 1px solid var(--sal-border);
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
-}
-
-/* --- Tags / badges inline --- */
-.md-typeset strong {
-  color: var(--md-primary-fg-color--light);
-}
-
-/* --- Mermaid diagrams — fond neutre --- */
+/* ================= MERMAID ================= */
 .mermaid {
-  background: #f8f9fa;
-  border: 1px solid var(--sal-border);
-  border-radius: 4px;
+  background: white;
+  border: 1px solid var(--aws-border);
+  border-radius: 6px;
   padding: 1rem;
-  text-align: center;
+}
+
+/* ================= BADGES ================= */
+.badge {
+  background: #EEF3F8;
+  color: var(--aws-blue);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+}
+
+/* ================= FOOTER ================= */
+.md-footer {
+  background: var(--aws-blue);
+  color: #A0AEC0;
+}
+
+/* ================= RESPONSIVE ================= */
+@media screen and (max-width:768px) {
+  .hero h1 {
+    font-size: 1.8rem;
+  }
 }
