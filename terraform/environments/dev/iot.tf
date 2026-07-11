@@ -5,10 +5,6 @@ resource "aws_iot_thing" "poste_1" {
   name = "poste_1"
 }
 
-# Certificate  X.509 — identité cryptographique du device
-resource "aws_iot_certificate" "poste_1" {
-  active = true  # Active = autorise à se connecter. Mettre fase =  révocation immédite si le device est compromis ou perdu
-}
 
 # Policy — autorisations strictes par device (least privilege)
 # Un device ne peut publier que sur son propre topic
@@ -40,14 +36,32 @@ resource "aws_iot_policy" "device_policy" {
   })
 }
 
-# Attacher la policy au certificat
-resource "aws_iot_policy_attachment" "poste_1" {
-  policy = aws_iot_policy.device_policy.name
-  target = aws_iot_certificate.poste_1.arn
+
+# ──────────────────────────────────────────────
+# IoT Rules Engine — Déclenchement des Lambdas
+# ──────────────────────────────────────────────
+
+resource "aws_iot_topic_rule" "analyze_vibration_rule" {
+  name        = "smart_assembly_analyze_vibration"
+  description = "Déclenche AnalyzeVibration sur chaque message capteur"
+  enabled     = true
+  sql         = "SELECT * FROM 'assembly-line/+/metrics'"
+  sql_version = "2016-03-23"
+
+  lambda {
+    function_arn = aws_lambda_function.analyze_vibration.arn
+  }
 }
 
-# Attacher le certificat au Thing
-resource "aws_iot_thing_principal_attachment" "poste_1" {
-  thing     = aws_iot_thing.poste_1.name
-  principal = aws_iot_certificate.poste_1.arn
+resource "aws_iot_topic_rule" "store_metrics_rule" {
+  name        = "smart_assembly_store_metrics"
+  description = "Déclenche StoreMetrics pour archiver chaque message dans S3"
+  enabled     = true
+  sql         = "SELECT * FROM 'assembly-line/+/metrics'"
+  sql_version = "2016-03-23"
+
+  lambda {
+    function_arn = aws_lambda_function.store_metrics.arn
+  }
 }
+

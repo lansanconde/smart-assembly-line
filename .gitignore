@@ -1,12 +1,12 @@
 # Terraform
-infra/.terraform/
-infra/terraform.tfstate
-infra/terraform.tfstate.backup
-infra/.terraform.lock.hcl
+**/.terraform/
+terraform/environments/dev/terraform.tfstate
+terraform/environments/dev/.terraform.lock.hcl
+terraform/environments/dev/terraform.tfstate*.backup
 
 # Credentials — JAMAIS commité
 infra/secrets.tfvars
 *.tfvars
 
 # Certificats IoT — JAMAIS commité (clés privées)
-iot-simulator/certs/
+src/iot-simulator/certs/

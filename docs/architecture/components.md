@@ -2,7 +2,6 @@
 
 ---
 
-
 ## 1. AWS IoT Core — Connectivité terrain
 
 IoT Core est le point d'entrée de tous les messages capteurs. Il gère l'authentification des devices, le routage des messages et la synchronisation d'état.
@@ -51,37 +50,204 @@ Le problème d'une connexion directe vers une API REST classique :
 
 AWS IoT Core résout ces quatre problèmes en un seul service managé.
 
+### Architecture
+
+```mermaid
+flowchart TD
+    subgraph TERRAIN["Terrain — Simulateur Python"]
+        SIM[iot-simulator
+publish_vibration.py]
+        CERT[Certificat X.509
++ Clé privée]
+    end
+
+    subgraph IOTCORE["AWS IoT Core"]
+        EP[Endpoint MQTT
+TLS 1.2 — port 8883]
+        REG[Device Registry
+Thing: poste-1]
+        SHADOW[Device Shadow
+reported / desired]
+        RULES[Rules Engine
+SQL sur topics]
+        POL[IoT Policy
+Authorisations publish/subscribe]
+    end
+
+    subgraph TARGETS["Cibles des règles"]
+        L1[Lambda
+AnalyzeVibration]
+        L2[Lambda
+StoreMetrics]
+    end
+
+    CERT -->|mTLS authentification| EP
+    SIM -->|publish
+assembly-line/poste-1/metrics| EP
+    EP --> REG
+    EP <--> SHADOW
+    EP --> POL
+    POL --> RULES
+    RULES -->|anomalie| L1
+    RULES -->|toutes mesures| L2
+```
+
+### Format du message MQTT
+
+```json
+{
+  "id_poste":    "poste-1",
+  "vibration":   1.24,
+  "temperature": 72.3,
+  "pression":    4.2,
+  "timestamp":   "2026-07-08T10:00:00Z"
+}
+```
+
+Publié toutes les **2 secondes** sur le topic `assembly-line/{id_poste}/metrics`.
+
+### Décisions de conception justifiées
+
+**mTLS — authentification mutuelle par certificat X.509**
+Chaque device s'authentifie avec son propre certificat signé par une CA AWS.
+Pas de mot de passe, pas de token à gérer. Si un device est compromis, on révoque uniquement son certificat — les autres ne sont pas affectés.
+C'est le standard de l'industrie pour l'authentification IoT à grande échelle.
+
+**MQTT sur TLS port 8883 — pas HTTP**
+MQTT est un protocole publish/subscribe conçu pour les contraintes réseau industrielles : faible bande passante, connexions instables, heartbeat configurable.
+Le QoS 1 (At Least Once) garantit la livraison même en cas de coupure réseau courte — le message est bufferisé et renvoyé à la reconnexion.
+
+**Device Shadow — état persistant côté cloud**
+Le Shadow maintient l'état du device même quand il est déconnecté.
+`reported` = ce que le device a envoyé en dernier.
+`desired` = ce qu'on veut que le device fasse (ex : changer un seuil d'alerte à distance).
+À la reconnexion, le device reçoit automatiquement le delta entre `reported` et `desired`.
+
+**Rules Engine SQL — routage déclaratif**
+```sql
+SELECT * FROM 'assembly-line/+/metrics'
+```
+Le `+` est un wildcard MQTT — une seule règle capture tous les postes.
+Le Rules Engine évalue la règle et déclenche les Lambdas cibles sans qu'on code le routage — c'est AWS qui gère la fanout.
+
+**IoT Policy — least privilege sur les topics**
+La policy autorise uniquement :
+- `iot:Connect` — se connecter à l'endpoint
+- `iot:Publish` sur `assembly-line/${iot:ClientId}/metrics` — publier uniquement sur son propre topic
+- `iot:Subscribe` sur son propre shadow
+
+Un device `poste-1` ne peut pas publier sur le topic de `poste-2`. Isolation stricte par device.
+
+### Trade-offs
+
+**IoT Core vs Kafka/MSK pour l'ingestion**
+Kafka offre une rétention configurable et un rejeu multi-consommateurs natif.
+IoT Core est choisi ici car il gère nativement l'authentification device (certificats X.509), le protocole MQTT, et le Device Shadow — des fonctionnalités qu'il faudrait construire manuellement autour de Kafka.
+Pour un flux pur données (pas de devices), Kinesis ou Kafka seraient plus appropriés.
+
+**QoS 1 vs QoS 2**
+QoS 2 (Exactly Once) garantit qu'un message est délivré exactement une fois — mais au coût d'un handshake à 4 temps, plus lent.
+On choisit QoS 1 (At Least Once) + idempotence côté Lambda : plus simple, plus rapide, et l'idempotence compense les doublons éventuels.
+
 ---
 
 ## 2. AWS Lambda — Traitement événementiel
 
-Lambda exécute le code métier sans serveur. Chaque fonction a une responsabilité unique (Single Responsibility Principle).
+### Problème adressé
+
+Les messages MQTT arrivent en continu depuis les capteurs. Deux traitements doivent s'exécuter sur chaque message, de façon indépendante et sans serveur à gérer :
+
+- **Analyse des anomalies** : détecter si une mesure dépasse un seuil critique et mettre à jour l'état du poste dans DynamoDB
+- **Archivage brut** : persister chaque message dans S3 pour l'historique et le futur ML
+
+Une architecture à base de serveurs (EC2, ECS) demanderait de gérer le provisionnement, la scalabilité et la disponibilité.
+Lambda résout le problème différemment : pas de serveur, facturation à l'invocation, scalabilité automatique jusqu'à des milliers d'exécutions parallèles.
+
+### Architecture
 
 ```mermaid
 flowchart TD
-    TRIGGER[IoT Rule\nDéclencheur] --> L1
+    RULE[IoT Rules Engine
+SELECT * FROM
+assembly-line/+/metrics] -->|invoque| L1
+    RULE -->|invoque| L2
 
     subgraph LAMBDA["AWS Lambda"]
-        L1[AnalyzeVibration\nPython 3.12]
-        L2[StoreMetrics\nPython 3.12]
-        L3[AlertDispatcher\nPython 3.12]
+        L1[AnalyzeVibration
+Python 3.12
+Détection anomalies]
+        L2[StoreMetrics
+Python 3.12
+Archivage S3]
     end
 
-    L1 -->|vibration > seuil| L3
-    L1 -->|PutItem| DDB[(DynamoDB\nmachine_state)]
-    L2 -->|PutObject| S3[(S3\nraw-data)]
-    L3 -->|Publish| SNS[SNS Topic\nops-alerts]
+    L1 -->|PutItem / UpdateItem| DDB[(DynamoDB
+machine_state)]
+    L2 -->|PutObject| S3[(S3
+raw-data)]
 
     CW[CloudWatch Logs] -.->|logs automatiques| L1
-    CW -.-> L2
-    CW -.-> L3
+    CW -.->|logs automatiques| L2
 ```
 
-**Points d'architecte à retenir :**
+### Responsabilités par fonction
 
-- **Cold start** : première invocation après inactivité (~100-500ms). Impact négligeable ici car les messages arrivent toutes les 2 secondes — Lambda reste "chaud".
-- **Idempotence** : chaque Lambda doit produire le même résultat si le même message est reçu deux fois (réseau peut dupliquer). On utilise l'`id_poste` + `timestamp` comme clé de déduplication dans DynamoDB.
-- **Timeout** : configuré à 10s. Si DynamoDB ou S3 ne répond pas, Lambda échoue proprement — pas de thread bloqué indéfiniment.
+**`AnalyzeVibration`**
+
+Reçoit le payload MQTT, évalue les seuils :
+
+| Métrique | Seuil WARN | Seuil CRITICAL |
+|---|---|---|
+| Vibration (m/s²) | > 1.5 | > 2.5 |
+| Température (°C) | > 80 | > 95 |
+| Pression (bar) | > 5.0 | > 6.5 |
+
+Met à jour DynamoDB avec le statut (`OK` / `WARN` / `CRITICAL`), la dernière mesure, et le compteur d'anomalies.
+
+**`StoreMetrics`**
+
+Reçoit le même payload, calcule la clé S3 partitionnée par date, et stocke le JSON brut :
+```
+s3://smart-assembly-raw-data/2026/07/09/20/poste_1_1720555464.json
+```
+
+### Décisions de conception justifiées
+
+**Single Responsibility — une fonction = une responsabilité**
+`AnalyzeVibration` et `StoreMetrics` sont deux fonctions séparées, pas une seule.
+Si l'archivage S3 ralentit (latence réseau), ça n'impacte pas la mise à jour de l'état DynamoDB.
+Si la logique d'analyse évolue (nouveau seuil, nouveau type d'anomalie), on redéploie uniquement `AnalyzeVibration` sans toucher à l'archivage.
+
+**Déclenchement via IoT Rules Engine — pas de polling**
+L'IoT Rule déclenche les deux Lambdas en push dès qu'un message arrive.
+Une architecture en polling (Lambda qui lit une queue toutes les N secondes) introduit une latence artificielle et des appels à vide.
+Le push est instantané, sans coût inutile.
+
+**Python 3.12 — pas Node.js**
+La communauté Data/ML AWS est majoritairement Python.
+Les librairies d'analyse de données (numpy, pandas, scipy pour le futur ML) sont natives Python.
+La cohérence avec le simulateur Python simplifie la maintenance.
+
+**Timeout à 10 secondes**
+Si DynamoDB ou S3 ne répond pas dans les 10s, Lambda échoue proprement.
+Pas de thread bloqué indéfiniment, pas de ressource monopolisée.
+DynamoDB répond en < 10ms en condition normale — 10s est une marge de sécurité généreuse.
+
+**Idempotence — clé `id_poste` + `timestamp`**
+MQTT QoS 1 peut délivrer un message deux fois en cas de reconnexion.
+`AnalyzeVibration` utilise `UpdateItem` avec `ConditionExpression` : si l'item existe déjà avec ce `timestamp`, on n'écrase pas.
+`StoreMetrics` utilise un nom de clé S3 incluant le timestamp Unix — une double livraison écrase le même objet avec le même contenu.
+
+### Trade-offs
+
+**Lambda vs ECS (conteneur long-running)**
+ECS permettrait de maintenir une connexion DynamoDB persistante (moins de latence de connexion).
+Lambda est choisi car la charge est événementielle, pas continue : payer un conteneur ECS 24h/24 pour des messages toutes les 2 secondes serait inefficace économiquement.
+
+**Cold start — impact réel**
+Première invocation après inactivité : ~200-500ms de démarrage.
+Impact négligeable ici : les messages arrivent toutes les 2 secondes, Lambda reste chaud en permanence.
+Si le besoin évolue vers du temps réel strict (< 50ms), on activerait **Provisioned Concurrency** pour maintenir des instances pré-démarrées.
 
 ---
 

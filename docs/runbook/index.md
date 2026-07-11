@@ -252,6 +252,49 @@ aws iot attach-policy \
   --target arn:aws:iot:eu-west-3:169237360990:cert/<CERT_ID>
 ```
 
+## Lambda
+
+### Lister les fonctions déployées
+
+```bash
+aws lambda list-functions --query 'Functions[?starts_with(FunctionName, `smart-assembly`)].{Nom:FunctionName,Runtime:Runtime,Timeout:Timeout}'
+```
+
+### Invoquer une fonction manuellement (test)
+
+```bash
+# Écrire le payload dans un fichier
+echo '{"id_poste":"poste_1","vibration":1.8,"temperature":82.0,"pression":4.5,"timestamp":"2026-07-11T10:00:00+00:00"}' > payload.json
+
+# Invoquer
+aws lambda invoke \
+  --function-name smart-assembly-analyze-vibration \
+  --payload file://payload.json \
+  response.json && cat response.json
+```
+
+### Consulter les logs CloudWatch
+
+```bash
+# Derniers logs de AnalyzeVibration
+aws logs tail /aws/lambda/smart-assembly-analyze-vibration --since 1h
+
+# Derniers logs de StoreMetrics
+aws logs tail /aws/lambda/smart-assembly-store-metrics --since 1h
+```
+
+### Vérifier les objets S3 archivés
+
+```bash
+aws s3 ls s3://smart-assembly-raw-data-169237360990/ --recursive
+```
+
+### IoT Rules Engine — vérifier les règles actives
+
+```bash
+aws iot list-topic-rules
+```
+
 ## Coûts AWS
 
 ### Voir une estimation des coûts du mois en cours
