@@ -472,6 +472,8 @@ flowchart TB
     subgraph INTERNET["Internet"]
         OPS[Opérateurs
 Tableau de bord]
+        EXT[APIs externes
+mises à jour packages]
     end
 
     subgraph VPC["VPC — 10.10.0.0/16"]
@@ -479,6 +481,8 @@ Tableau de bord]
 
         subgraph PUBLIC["Subnet Public — 10.10.1.0/24"]
             ALB[Application Load Balancer]
+            NAT[NAT Gateway
++ Elastic IP]
         end
 
         subgraph PRIVATE["Subnet Privé — 10.10.2.0/24"]
@@ -495,8 +499,9 @@ ECS / EC2]
     end
 
     OPS --> IGW --> ALB --> API_VPC
-    LAMBDA_VPC --> EP_DDB --> DDB[(DynamoDB)]
+    LAMBDA_VPC -->|appels AWS| EP_DDB --> DDB[(DynamoDB)]
     LAMBDA_VPC --> EP_S3 --> S3[(S3)]
+    LAMBDA_VPC -->|appels internet| NAT --> IGW --> EXT
 ```
 
 ### Décisions de conception justifiées
@@ -507,24 +512,34 @@ Prévoir de l'espace pour des subnets futurs (multi-AZ, subnets dédiés RDS, EC
 
 **Deux subnets distincts : public et privé**
 La séparation n'est pas cosmétique — elle est structurelle.
-Le subnet public (`10.10.1.0/24`) expose uniquement le Load Balancer, seul composant qui doit recevoir du trafic externe.
-Le subnet privé (`10.10.2.0/24`) contient Lambda et l'API : aucune route vers internet, aucune IP publique assignée.
+Le subnet public (`10.10.1.0/24`) expose uniquement le Load Balancer et la NAT Gateway, seuls composants qui doivent interagir avec internet.
+Le subnet privé (`10.10.2.0/24`) contient Lambda et l'API : aucune IP publique assignée, jamais joignable depuis l'extérieur.
 
 **Internet Gateway attachée au VPC**
 L'IGW est la seule porte vers internet. Sans elle, même le subnet public est isolé.
 Elle est attachée au VPC, pas au subnet — c'est la route table du subnet public qui décide quels flux passent par l'IGW.
 
-**VPC Endpoints pour DynamoDB et S3**
-Sans VPC Endpoint, une Lambda en subnet privé qui appelle DynamoDB doit soit passer par un NAT Gateway
-(coûteux : ~32$/mois fixe + trafic), soit avoir une IP publique (non acceptable).
-Les VPC Endpoints permettent d'atteindre DynamoDB et S3 **via le réseau backbone AWS**, sans sortir sur internet.
-Résultat : sécurité, latence réduite, et zéro coût de transfert inter-réseau.
+**NAT Gateway dans le subnet public**
+Les ressources du subnet privé (Lambda, API) ont parfois besoin de sortir vers internet : appels vers des APIs tierces, téléchargement de packages, appels vers des services AWS non couverts par VPC Endpoint.
+La NAT Gateway leur permet de sortir sans être exposées : le trafic sortant porte l'IP publique de la NAT, jamais celle de Lambda.
+Depuis internet, on ne voit que la NAT — Lambda reste invisible et inaccessible en entrée.
+
+**VPC Endpoints pour DynamoDB et S3 — pas de NAT pour les services AWS**
+La NAT Gateway route le trafic vers internet à ~$0.045/GB traité.
+DynamoDB et S3 sont des services AWS internes : les appeler via la NAT serait payer inutilement et allonger le chemin réseau.
+Les VPC Endpoints routent ces appels **via le backbone privé AWS**, sans sortir sur internet — zéro coût de transfert, latence réduite, sécurité renforcée.
 
 **Route table privée explicite**
 Le subnet privé pourrait hériter implicitement de la main route table du VPC (comportement AWS par défaut).
-C'est fonctionnellement correct, mais dangereux : toute modification accidentelle de la main route table
-affecterait le subnet privé sans avertissement.
-On lui associe une route table dédiée, vide de toute route externe — l'intention est dans le code, pas dans le comportement implicite AWS.
+C'est fonctionnellement correct, mais dangereux : toute modification accidentelle de la main route table affecterait le subnet privé sans avertissement.
+On lui associe une route table dédiée avec une seule route de sortie explicite : `0.0.0.0/0 → NAT Gateway`.
+
+### Table de routage complète
+
+| Route table | Subnet | Routes | Rôle |
+|---|---|---|---|
+| `rt-public` | `10.10.1.0/24` | `0.0.0.0/0 → IGW` + `local` | Trafic internet entrant/sortant via IGW |
+| `rt-private` | `10.10.2.0/24` | `0.0.0.0/0 → NAT` + `local` | Sortie internet via NAT uniquement, pas d'entrée |
 
 **Security Groups — deny-all par défaut**
 AWS applique un refus implicite sur tout trafic non explicitement autorisé.

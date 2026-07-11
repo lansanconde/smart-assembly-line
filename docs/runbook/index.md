@@ -295,6 +295,38 @@ aws s3 ls s3://smart-assembly-raw-data-169237360990/ --recursive
 aws iot list-topic-rules
 ```
 
+## NAT Gateway
+
+> ⚠️ Ressource coûteuse (~$32/mois). Créer uniquement pour un lab, détruire immédiatement après.
+
+### Créer la NAT Gateway
+
+```bash
+terraform apply \
+  -target="aws_eip.nat" \
+  -target="aws_nat_gateway.main" \
+  -target="aws_route.private_nat"
+```
+
+### Vérifier la route dans le subnet privé
+
+```bash
+aws ec2 describe-route-tables \
+  --filters "Name=tag:Name,Values=smart-assembly-rt-private" \
+  --query "RouteTables[].Routes"
+```
+
+La route `0.0.0.0/0 → nat-xxxxxxx` doit apparaître.
+
+### Détruire après le lab (obligatoire)
+
+```bash
+terraform destroy \
+  -target="aws_route.private_nat" \
+  -target="aws_nat_gateway.main" \
+  -target="aws_eip.nat"
+```
+
 ## Coûts AWS
 
 ### Voir une estimation des coûts du mois en cours

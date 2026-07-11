@@ -65,3 +65,39 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private.id
   route_table_id = aws_route_table.private.id
 }
+
+# ──────────────────────────────────────────────
+# NAT Gateway — sortie internet pour le subnet privé
+# ──────────────────────────────────────────────
+
+# Elastic IP — adresse publique fixe portée par la NAT
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = {
+    Name        = "smart-assembly-nat-eip"
+    Project     = "smart-assembly-line"
+    Environment = "dev"
+  }
+}
+
+# NAT Gateway — placée dans le subnet PUBLIC (elle a besoin de l'IGW)
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public.id
+
+  tags = {
+    Name        = "smart-assembly-nat"
+    Project     = "smart-assembly-line"
+    Environment = "dev"
+  }
+
+  depends_on = [aws_internet_gateway.main]
+}
+
+# Route sortante du subnet privé → NAT Gateway
+resource "aws_route" "private_nat" {
+  route_table_id         = aws_route_table.private.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.main.id
+}
