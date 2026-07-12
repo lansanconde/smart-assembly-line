@@ -313,7 +313,7 @@ SELECT * FROM assembly-line/+/metrics] -->|invoke| DA
 
 Le **combo dangereux** est la valeur ajoutée de `DetectAnomaly` par rapport à `AnalyzeVibration` : deux métriques en WARN simultanément peuvent indiquer un risque CRITICAL même si aucune n'atteint son seuil CRITICAL individuel.
 
-#### Décisions de conception justifiées
+#### Décisions de conception
 
 **Sortie EventBridge — pas DynamoDB directement**
 `AnalyzeVibration` écrit directement dans DynamoDB (couplage direct).
@@ -331,6 +331,14 @@ Chaque exécution produit un log JSON avec `id_poste`, `statut`, `règle_déclen
 CloudWatch Logs Insights peut alors faire des requêtes : "combien d'anomalies CRITICAL sur poste_1 cette semaine ?"
 
 ---
+
+#### Idempotence & Retry strategy
+
+**Idempotence — clé `id_poste` + `timestamp`**
+
+Chaque message MQTT reçu est identifié par `id_poste` + `timestamp`.
+Après traitement, `DetectAnomaly` écrit `detect_last_timestamp` dans DynamoDB.
+Si le même message arrive une deuxième fois (QoS 1 peut dupliquer), la fonction détecte le doublon et retourne `duplicate_skipped` sans publier sur EventBridge.
 
 ## 3. S3 — Data Lake
 

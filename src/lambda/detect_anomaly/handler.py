@@ -2,6 +2,8 @@ import json
 import boto3
 import os
 import logging
+import time
+import random
 from datetime import datetime, timezone
 
 # Logs structurés JSON
@@ -69,19 +71,44 @@ def evaluate_rules(payload: dict) -> tuple[str, str, str]:
 
 
 def is_duplicate(id_poste: str, timestamp: str) -> bool:
-    """
-    Idempotence : vérifie si cet événement a déjà été traité.
-    Compare le timestamp_last dans DynamoDB avec le timestamp courant.
-    """
     try:
         table = dynamodb.Table(TABLE_NAME)
         response = table.get_item(Key={"id_poste": id_poste})
         item = response.get("Item", {})
-        return item.get("timestamp_last") == timestamp
+        return item.get("detect_last_timestamp") == timestamp
     except Exception as e:
-        logger.warning(f"[DetectAnomaly] Vérification idempotence échouée : {e} — on continue")
+        logger.warning(f"[DetectAnomaly] Idempotence check failed: {e}")
         return False
+    
 
+def retry_with_backoff(func, max_attempts: int = 3, base_delay: float = 1.0, cap: float = 8.0):
+    """
+    Retry avec backoff exponentiel + jitter.
+    Formule : min(cap, base * 2^tentative) + random(0, 1)
+    Evite le thundering herd si plusieurs Lambdas echouent simultanement.
+    """
+    for attempt in range(max_attempts):
+        try:
+            return func()
+        except Exception as e:
+            if attempt == max_attempts - 1:
+                raise  # derniere tentative — on propage l'erreur
+            delay = min(cap, base_delay * (2 ** attempt)) + random.uniform(0, 1)
+            logger.warning(json.dumps({
+                "action":   "retry",
+                "attempt":  attempt + 1,
+                "delay_s":  round(delay, 2),
+                "error":    str(e),
+            }))
+            time.sleep(delay)
+
+def mark_processed(id_poste: str, timestamp: str) -> None:
+    table = dynamodb.Table(TABLE_NAME)
+    table.update_item(
+        Key={"id_poste": id_poste},
+        UpdateExpression="SET detect_last_timestamp = :ts",
+        ExpressionAttributeValues={":ts": timestamp},
+    ) 
 
 def publish_event(id_poste: str, statut: str, regle: str, detail: str, payload: dict) -> None:
     """
@@ -138,8 +165,16 @@ def lambda_handler(event, context):
     # Évaluation des règles métier
     statut, regle, detail = evaluate_rules(event)
 
-    # Publication EventBridge
-    publish_event(id_poste, statut, regle, detail, event)
+
+    # Publication EventBridge avec retry
+    retry_with_backoff(
+        lambda: publish_event(id_poste, statut, regle, detail, event)
+    )
+
+    # Marquage idempotence avec retry
+    retry_with_backoff(
+        lambda: mark_processed(id_poste, timestamp)
+    )
 
     # Log structuré JSON — queryable via CloudWatch Logs Insights
     logger.info(json.dumps({

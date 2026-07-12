@@ -462,7 +462,9 @@ Résultat attendu : `"statut": "CRITICAL"`, `"regle": "combo.dangereux"`
 ### Consulter les logs CloudWatch
 
 ```bash
-aws logs tail /aws/lambda/smart-assembly-detect-anomaly --since 1h
+aws logs filter-log-events \
+  --log-group-name /aws/lambda/smart-assembly-detect-anomaly \
+  --limit 10
 ```
 
 ## Coûts AWS
