@@ -630,7 +630,7 @@ Tout le trafic HTTP est redirigé vers HTTPS au niveau de l'ALB.
 Le certificat TLS est terminé à l'ALB — les instances backend communiquent en HTTP interne dans le VPC privé.
 Résultat : chiffrement bout-en-bout depuis le navigateur jusqu'à l'ALB, sans complexité TLS sur le backend.
 
-### Trade-offs
+### Trade-offs 
 
 **ALB vs NLB (Network Load Balancer)**
 Le NLB opère en couche 4 (TCP) — plus rapide, adapté aux flux MQTT ou TCP bruts.
@@ -644,3 +644,95 @@ Pour un tableau de bord opérateur avec trafic constant, l'ALB est plus avantage
 
 !!! warning "Coût"
     L'ALB coûte ~$18/mois fixe + $0.008/LCU. À créer uniquement pour un lab ou la production — détruire après le lab.
+
+---
+
+## 7. KMS — Chiffrement bout-en-bout
+
+### Problèmatique
+
+Par défaut, S3 et DynamoDB utilisent des clés AWS managées (`aws/s3`, `aws/dynamodb`).
+Ces clés appartiennent à AWS — on ne contrôle pas leur utilisation, et aucun audit granulaire n'est possible.
+
+En contexte industriel réglementé, ce n'est pas acceptable : l'auditeur veut savoir **qui** a accédé à quelle donnée, **quand**, et **depuis quel rôle**.
+Une Customer Managed Key (CMK) répond à cette exigence : chaque accès à la clé est tracé dans CloudTrail.
+
+### Architecture — Envelope Encryption
+
+```mermaid
+flowchart TD
+    subgraph KMS["AWS KMS"]
+        CMK[Customer Managed Key
+smart-assembly-key
+Rotation annuelle automatique]
+    end
+
+    subgraph LAMBDA["Lambda"]
+        L1[AnalyzeVibration]
+        L2[StoreMetrics]
+    end
+
+    subgraph STORAGE["Stockage chiffré"]
+        DDB[(DynamoDB
+machine_state)]
+        S3[(S3
+raw-data)]
+    end
+
+    L1 -->|PutItem| DDB
+    L2 -->|PutObject| S3
+    DDB -->|GenerateDataKey| CMK
+    S3 -->|GenerateDataKey| CMK
+    CMK -->|DEK chiffrée| DDB
+    CMK -->|DEK chiffrée| S3
+```
+
+### Pattern Envelope Encryption
+
+KMS ne chiffre pas directement les données — ce serait trop lent pour des fichiers volumineux.
+Il génère une **Data Encryption Key (DEK)** éphémère qui chiffre les données réelles.
+La DEK elle-même est ensuite chiffrée par la CMK et stockée à côté des données.
+
+```
+Donnée brute  →  [chiffrée par DEK]  →  Donnée chiffrée stockée
+DEK           →  [chiffrée par CMK]  →  DEK chiffrée stockée
+CMK           →  stockée dans HSM AWS, jamais exposée ni exportable
+```
+
+Pour déchiffrer : S3/DynamoDB demande à KMS de déchiffrer la DEK → utilise la DEK pour déchiffrer la donnée → la DEK est détruite en mémoire.
+
+### Décisions de conception
+
+**CMK vs clé AWS managée**
+La clé AWS managée est gratuite mais opaque — AWS la gère entièrement, aucun audit des accès possible.
+La CMK coûte $1/mois mais donne le contrôle total : Key Policy granulaire, audit CloudTrail de chaque utilisation, rotation configurable.
+En contexte réglementaire (RGPD), la traçabilité des accès aux données est une exigence d'audit — la CMK est non négociable.
+
+**Key Policy — least privilege**
+Seuls les rôles qui ont besoin de la clé y ont accès :
+- Rôle Lambda : `kms:GenerateDataKey` + `kms:Decrypt` pour lire/écrire S3 et DynamoDB
+- Administrateur IAM : gestion de la clé (`kms:Create*`, `kms:Delete*`)
+- Tout autre rôle : accès refusé implicitement
+
+Un rôle compromis sans permission KMS ne peut pas déchiffrer les données — même s'il accède au bucket S3.
+
+**Rotation automatique annuelle**
+Tous les ans, AWS génère un nouveau matériel cryptographique sous le même ARN de clé.
+Les données chiffrées avec l'ancien matériel restent déchiffrables — AWS conserve les versions historiques.
+Zéro intervention manuelle, zéro interruption de service.
+
+**Une seule clé pour S3 et DynamoDB**
+On pourrait créer une clé par service (isolation maximale).
+Ici on choisit une clé partagée entre S3 et DynamoDB : même projet, même niveau de confidentialité, gestion simplifiée.
+Si des exigences réglementaires différentes émergent par service, on créera des clés dédiées.
+
+### Trade-offs
+
+**KMS vs chiffrement applicatif (client-side encryption)**
+Le chiffrement côté client (avant d'envoyer à S3) offre une isolation maximale — AWS ne voit jamais les données en clair.
+Mais il ajoute une complexité applicative significative (gestion des clés dans le code, rotation applicative).
+SSE-KMS est le bon compromis : AWS gère le chiffrement/déchiffrement de façon transparente, la CMK reste sous notre contrôle.
+
+### Coût
+
+$1/mois par clé + $0.03 pour 10 000 appels API KMS. Négligeable — c'est une ressource permanente.

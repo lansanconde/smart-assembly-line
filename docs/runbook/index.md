@@ -369,6 +369,30 @@ terraform destroy \
   -target="aws_subnet.public_b"
 ```
 
+## KMS
+
+### Vérifier la clé CMK
+
+```bash
+aws kms describe-key --key-id alias/smart-assembly-key \
+  --query "KeyMetadata.{ID:KeyId,Statut:KeyState,Rotation:KeyRotationStatus}"
+```
+
+### Vérifier que S3 utilise la CMK
+
+```bash
+aws s3api get-bucket-encryption \
+  --bucket smart-assembly-raw-data-169237360990
+```
+
+### Vérifier que DynamoDB utilise la CMK
+
+```bash
+aws dynamodb describe-table \
+  --table-name machine_state \
+  --query "Table.SSEDescription"
+```
+
 ## Coûts AWS
 
 ### Voir une estimation des coûts du mois en cours

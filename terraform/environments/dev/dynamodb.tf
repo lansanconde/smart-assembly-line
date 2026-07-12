@@ -15,6 +15,7 @@ resource "aws_dynamodb_table" "machine_state" {
   # Chiffrement at-rest avec clé KMS gérée par AWS
   server_side_encryption {
     enabled = true
+    kms_key_arn = aws_kms_key.main.arn
   }
 
   # Point-in-time recovery — restauration possible à n'importe quel moment des 35 derniers jours
