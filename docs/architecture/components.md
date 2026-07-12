@@ -560,3 +560,87 @@ Ce VPC est en **single-AZ** (`eu-west-3a`) pour ce stade du projet.
 En production critique, on déploierait sur **2 ou 3 AZ** avec un subnet public et privé par AZ,
 et un ALB multi-AZ pour absorber la défaillance d'une zone.
 Ce point est documenté comme dette technique à traiter dans la suite du projet (multi-region / haute disponibilité).
+
+---
+
+## 6. ALB — Load Balancer applicatif
+
+### Problème adressé
+
+Le backend Spring Boot (supervision des postes) doit être accessible depuis internet de façon **fiable et scalable**.
+Une instance unique est un point de défaillance : si elle tombe, le tableau de bord des opérateurs devient inaccessible.
+
+L'Application Load Balancer résout trois problèmes simultanément :
+- **Haute disponibilité** : distribue le trafic sur plusieurs instances dans plusieurs zones de disponibilité
+- **Health check automatique** : exclut les instances défaillantes sans intervention manuelle
+- **Terminaison TLS** : gère le certificat HTTPS en façade, le backend peut rester en HTTP interne
+
+### Architecture
+
+```mermaid
+flowchart TB
+    subgraph INTERNET["Internet"]
+        OPS[Opérateurs
+Navigateur / Dashboard]
+    end
+
+    subgraph VPC["VPC — 10.10.0.0/16"]
+        subgraph PUBLIC["Subnet Public"]
+            ALB[Application Load Balancer
+port 80 / 443]
+        end
+
+        subgraph PRIVATE["Subnet Privé"]
+            API1[Spring Boot
+Instance AZ-a]
+            API2[Spring Boot
+Instance AZ-b]
+        end
+
+        TG[Target Group
+Health check GET /health]
+    end
+
+    OPS -->|HTTPS| ALB
+    ALB -->|round-robin| TG
+    TG -->|HTTP interne| API1
+    TG -->|HTTP interne| API2
+    API1 -.->|health check KO| TG
+```
+
+### Décisions de conception justifiées
+
+**ALB dans le subnet public — instances backend dans le subnet privé**
+L'ALB est le seul composant exposé sur internet. Il porte l'IP publique et accepte les connexions entrantes.
+Les instances Spring Boot n'ont pas d'IP publique — elles ne reçoivent que le trafic interne provenant de l'ALB.
+Un attaquant ne peut pas atteindre directement le backend, même s'il connaît son IP interne.
+
+**Health check sur `/health` toutes les 30 secondes**
+L'ALB interroge chaque instance sur `GET /health`. Si l'instance répond `200 OK` → healthy, elle reçoit du trafic.
+Si elle ne répond pas en moins de 5 secondes → unhealthy, l'ALB l'exclut du pool immédiatement, sans intervention manuelle.
+Dès que l'instance répond à nouveau → l'ALB la réintègre automatiquement.
+
+**Multi-AZ — résilience zonale**
+L'ALB est déployé simultanément dans `eu-west-3a` et `eu-west-3b`.
+Si une zone de disponibilité tombe (panne datacenter AWS), l'ALB continue de servir depuis l'autre zone.
+Les opérateurs ne voient aucune interruption — la bascule est transparente et automatique.
+
+**Listener port 80 → redirect 443**
+Tout le trafic HTTP est redirigé vers HTTPS au niveau de l'ALB.
+Le certificat TLS est terminé à l'ALB — les instances backend communiquent en HTTP interne dans le VPC privé.
+Résultat : chiffrement bout-en-bout depuis le navigateur jusqu'à l'ALB, sans complexité TLS sur le backend.
+
+### Trade-offs
+
+**ALB vs NLB (Network Load Balancer)**
+Le NLB opère en couche 4 (TCP) — plus rapide, adapté aux flux MQTT ou TCP bruts.
+L'ALB opère en couche 7 (HTTP) — permet le routage par path (`/api/*` → backend A, `/admin/*` → backend B), par header, et la terminaison TLS.
+Pour une API REST Spring Boot, la couche 7 est le bon niveau.
+
+**ALB vs API Gateway**
+API Gateway gère nativement l'authentification, le throttling et la transformation des requêtes, mais facture à l'appel.
+L'ALB facture à l'heure (~$18/mois fixe) — plus économique pour un trafic continu élevé.
+Pour un tableau de bord opérateur avec trafic constant, l'ALB est plus avantageux. Pour une API publique à trafic variable, API Gateway serait préférable.
+
+!!! warning "Coût"
+    L'ALB coûte ~$18/mois fixe + $0.008/LCU. À créer uniquement pour un lab ou la production — détruire après le lab.

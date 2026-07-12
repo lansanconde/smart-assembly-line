@@ -101,3 +101,24 @@ resource "aws_route" "private_nat" {
   destination_cidr_block = "0.0.0.0/0"
   nat_gateway_id         = aws_nat_gateway.main.id
 }
+
+
+# ────────────────────────────────────────────── 
+# Subnet public secondaire — AZ b (requis pour ALB multi-AZ)
+# ──────────────────────────────────────────────
+resource "aws_subnet" "public_b" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.10.3.0/24"
+  availability_zone = "eu-west-3b"
+
+  tags = {
+    Name        = "smart-assembly-subnet-public-b"
+    Project     = "smart-assembly-line"
+    Environment = "dev"
+  }
+}
+
+resource "aws_route_table_association" "public_b" {
+  subnet_id      = aws_subnet.public_b.id
+  route_table_id = aws_route_table.public.id
+}

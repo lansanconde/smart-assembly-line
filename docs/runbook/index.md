@@ -326,6 +326,48 @@ terraform destroy \
   -target="aws_nat_gateway.main" \
   -target="aws_eip.nat"
 ```
+## Application Load Balancer
+
+> ⚠️ Ressource coûteuse (~$18/mois). Créer uniquement pour un lab ou la production — détruire après le lab.
+
+### Créer l'ALB
+
+```bash
+terraform apply \
+  -target="aws_subnet.public_b" \
+  -target="aws_route_table_association.public_b" \
+  -target="aws_security_group.alb" \
+  -target="aws_lb.main" \
+  -target="aws_lb_target_group.backend" \
+  -target="aws_lb_listener.http"
+```
+
+### Vérifier l'état de l'ALB
+
+```bash
+aws elbv2 describe-load-balancers \
+  --names smart-assembly-alb \
+  --query "LoadBalancers[].{State:State.Code,DNS:DNSName,AZs:AvailabilityZones[].ZoneName}"
+```
+
+### Vérifier le Target Group
+
+```bash
+aws elbv2 describe-target-health \
+  --target-group-arn arn:aws:elasticloadbalancing:eu-west-3:169237360990:targetgroup/smart-assembly-backend-tg/913b37b4350dd4ea
+```
+
+### Détruire après le lab (obligatoire)
+
+```bash
+terraform destroy \
+  -target="aws_lb_listener.http" \
+  -target="aws_lb.main" \
+  -target="aws_lb_target_group.backend" \
+  -target="aws_security_group.alb" \
+  -target="aws_route_table_association.public_b" \
+  -target="aws_subnet.public_b"
+```
 
 ## Coûts AWS
 
