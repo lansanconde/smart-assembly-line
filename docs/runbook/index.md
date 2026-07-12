@@ -77,6 +77,42 @@ aws iam delete-access-key --user-name NOM_USER --access-key-id AKIAXXXXXXXX
 
 ---
 
+## IAM avancé
+
+### Vérifier la permission boundary du rôle Lambda
+
+```bash
+aws iam get-role --role-name smart-assembly-lambda-role \
+  --query "Role.PermissionsBoundary"
+```
+
+### Vérifier la bucket policy S3
+
+```bash
+aws s3api get-bucket-policy \
+  --bucket smart-assembly-raw-data-169237360990 \
+  --query Policy --output text
+```
+
+### Vérifier que Lambda ne peut pas supprimer S3 (boundary)
+
+La permission boundary exclut `s3:DeleteObject`.
+Vérification indirecte : la policy et la boundary de Lambda ne contiennent que `s3:PutObject`.
+
+```bash
+aws iam get-policy-version \
+  --policy-arn arn:aws:iam::169237360990:policy/smart-assembly-lambda-boundary \
+  --version-id v1 \
+  --query "PolicyVersion.Document.Statement[].Action"
+```
+
+### Vérifier les policies attachées au rôle Lambda
+
+```bash
+aws iam list-attached-role-policies --role-name smart-assembly-lambda-role
+aws iam list-role-policies --role-name smart-assembly-lambda-role
+```
+
 ## VPC
 
 ### Vérifier l'état du VPC

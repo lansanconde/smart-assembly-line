@@ -736,3 +736,100 @@ SSE-KMS est le bon compromis : AWS gère le chiffrement/déchiffrement de façon
 ### Coût
 
 $1/mois par clé + $0.03 pour 10 000 appels API KMS. Négligeable — c'est une ressource permanente.
+
+
+
+## 8. IAM avancé — Contrôle d'accès granulaire
+
+### Problèmatique abordée
+
+Un rôle IAM avec trop de permissions est une bombe à retardement : si Lambda est compromise, l'attaquant hérite de tous ses droits.
+Deux risques concrets dans notre architecture :
+
+- **Privilege escalation** : une équipe peut créer un rôle avec plus de droits qu'elle n'en a
+- **Blast radius trop large** : un rôle Lambda compromis peut lire/écrire sur toutes les ressources du compte
+
+IAM avancé répond à ces deux risques avec deux mécanismes complémentaires.
+
+### Permission Boundary — plafond de permissions
+
+```mermaid
+flowchart TD
+    subgraph POLICY["Policy attachée au rôle Lambda"]
+        P1[s3:PutObject]
+        P2[dynamodb:PutItem]
+        P3[s3:DeleteBucket]
+        P4[iam:CreateRole]
+    end
+
+    subgraph BOUNDARY["Permission Boundary"]
+        B1[s3:PutObject ✅]
+        B2[dynamodb:PutItem ✅]
+        B3[dynamodb:GetItem ✅]
+        B4[kms:GenerateDataKey ✅]
+        B5[kms:Decrypt ✅]
+        B6[logs:CreateLogGroup ✅]
+    end
+
+    subgraph EFFECTIVE["Permissions effectives"]
+        E1[s3:PutObject ✅]
+        E2[dynamodb:PutItem ✅]
+    end
+
+    POLICY -->|intersection| EFFECTIVE
+    BOUNDARY -->|intersection| EFFECTIVE
+
+    note["s3:DeleteBucket et iam:CreateRole\nsont dans la policy mais pas dans la boundary\n→ refusés"]
+```
+
+**Règle** : `Permissions effectives = Policy attachée ∩ Permission Boundary`
+
+Même si quelqu'un attache `AdministratorAccess` au rôle Lambda, la boundary l'empêche de dépasser les actions autorisées.
+
+### Policy data lake — écriture restreinte
+
+```mermaid
+flowchart LR
+    subgraph ROLES["Rôles IAM"]
+        LAMBDA[smart-assembly-lambda-role
+Peut écrire dans S3]
+        OTHER[Autre rôle
+Refusé en écriture S3]
+    end
+
+    subgraph S3["S3 — raw-data"]
+        WRITE[s3:PutObject ✅]
+        DELETE[s3:DeleteObject ❌]
+        READ[s3:GetObject ❌]
+    end
+
+    LAMBDA -->|PutObject autorisé| WRITE
+    OTHER -->|AccessDenied| WRITE
+```
+
+Seul `smart-assembly-lambda-role` peut écrire dans le data lake. Lecture interdite depuis Lambda (séparation des responsabilités : Lambda écrit, les outils analytiques lisent).
+
+### Décisions de conception
+
+**Permission Boundary sur le rôle Lambda**
+Sans boundary, une misconfiguration ou une injection de code dans Lambda pourrait permettre à l'attaquant de s'octroyer des droits IAM supplémentaires.
+La boundary fixe un plafond absolu : même avec `iam:*` dans la policy, Lambda ne peut pas créer de rôles ni modifier ses propres permissions.
+C'est le pattern **defense in depth** appliqué à IAM.
+
+**Policy data lake — PutObject uniquement, pas GetObject**
+Lambda écrit les données brutes dans S3 (`StoreMetrics`).
+Lambda n'a pas besoin de lire S3 — c'est le rôle d'Athena ou d'un pipeline analytique.
+Appliquer le moindre privilège à la lettre : si Lambda n'a pas besoin de lire, elle ne peut pas lire.
+Si un attaquant prend le contrôle de Lambda, il ne peut pas exfiltrer l'historique complet du data lake.
+
+**Pas de SCP dans ce projet (single-account)**
+Les SCPs s'appliquent dans AWS Organizations (multi-comptes).
+Ce projet utilise un compte unique pour l'instant — les SCPs ne sont pas applicables.
+En production multi-comptes (Dev / Staging / Prod dans des comptes séparés), les SCPs seraient la première ligne de défense : interdire les suppressions S3, bloquer les régions non autorisées, interdire la création de ressources publiques.
+
+### Trade-offs
+
+**Granularité vs maintenabilité**
+Plus les policies sont granulaires, plus elles sont sécurisées — mais plus elles sont difficiles à maintenir quand l'architecture évolue.
+Ici on choisit un niveau intermédiaire : actions spécifiques par service, pas de wildcard `s3:*`, mais pas non plus une policy par ressource individuelle.
+La règle de décision : une action non nécessaire aujourd'hui est refusée, on l'ajoute si le besoin émerge.
