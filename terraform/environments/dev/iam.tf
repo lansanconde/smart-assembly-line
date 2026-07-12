@@ -64,3 +64,19 @@ resource "aws_iam_role_policy" "lambda_s3_policy" {
     ]
   })
 }
+
+resource "aws_iam_role_policy" "lambda_eventbridge_policy" {
+  name = "smart-assembly-lambda-eventbridge"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["events:PutEvents"]
+        Resource = aws_cloudwatch_event_bus.main.arn
+      }
+    ]
+  })
+}

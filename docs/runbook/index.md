@@ -429,6 +429,42 @@ aws dynamodb describe-table \
   --query "Table.SSEDescription"
 ```
 
+## EventBridge + DetectAnomaly
+
+### Vérifier le bus EventBridge
+
+```bash
+aws events describe-event-bus --name smart-assembly-events
+```
+
+### Lister les règles du bus
+
+```bash
+aws events list-rules --event-bus-name smart-assembly-events
+```
+
+### Tester DetectAnomaly — combo dangereux
+
+Console AWS → Lambda → `smart-assembly-detect-anomaly` → Test :
+
+```json
+{
+  "id_poste": "poste_1",
+  "vibration": 1.6,
+  "temperature": 82.0,
+  "pression": 4.5,
+  "timestamp": "2026-07-12T14:00:00+00:00"
+}
+```
+
+Résultat attendu : `"statut": "CRITICAL"`, `"regle": "combo.dangereux"`
+
+### Consulter les logs CloudWatch
+
+```bash
+aws logs tail /aws/lambda/smart-assembly-detect-anomaly --since 1h
+```
+
 ## Coûts AWS
 
 ### Voir une estimation des coûts du mois en cours

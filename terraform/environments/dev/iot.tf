@@ -65,3 +65,15 @@ resource "aws_iot_topic_rule" "store_metrics_rule" {
   }
 }
 
+
+resource "aws_iot_topic_rule" "detect_anomaly_rule" {
+  name        = "smart_assembly_detect_anomaly"
+  description = "Declenche DetectAnomaly pour les regles metier avancees"
+  enabled     = true
+  sql         = "SELECT * FROM 'assembly-line/+/metrics'"
+  sql_version = "2016-03-23"
+
+  lambda {
+    function_arn = aws_lambda_function.detect_anomaly.arn
+  }
+}

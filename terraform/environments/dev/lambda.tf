@@ -42,6 +42,7 @@ resource "aws_lambda_function" "analyze_vibration" {
 }
 
 resource "aws_lambda_permission" "iot_invoke_analyze" {
+
   statement_id  = "AllowIoTInvokeAnalyze"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.analyze_vibration.function_name
@@ -79,5 +80,47 @@ resource "aws_lambda_permission" "iot_invoke_store" {
   statement_id  = "AllowIoTInvokeStore"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.store_metrics.function_name
+  principal     = "iot.amazonaws.com"
+}
+
+
+# ──────────────────────────────────────────────
+# Lambda — DetectAnomaly
+# ──────────────────────────────────────────────
+
+data "archive_file" "detect_anomaly_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../../src/lambda/detect_anomaly/handler.py"
+  output_path = "${path.module}/../../../src/lambda/detect_anomaly/handler.zip"
+}
+
+resource "aws_lambda_function" "detect_anomaly" {
+  function_name    = "smart-assembly-detect-anomaly"
+  description      = "Regles metier avancees — publie sur EventBridge"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "handler.lambda_handler"
+  runtime          = "python3.12"
+  timeout          = 10
+  filename         = data.archive_file.detect_anomaly_zip.output_path
+  source_code_hash = data.archive_file.detect_anomaly_zip.output_base64sha256
+
+  environment {
+    variables = {
+      EVENT_BUS_NAME = aws_cloudwatch_event_bus.main.name
+      TABLE_NAME     = aws_dynamodb_table.machine_state.name
+    }
+  }
+
+  tags = {
+    Name        = "smart-assembly-detect-anomaly"
+    Project     = "smart-assembly-line"
+    Environment = "dev"
+  }
+}
+
+resource "aws_lambda_permission" "iot_invoke_detect" {
+  statement_id  = "AllowIoTInvokeDetect"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.detect_anomaly.function_name
   principal     = "iot.amazonaws.com"
 }

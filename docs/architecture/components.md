@@ -153,6 +153,19 @@ On choisit QoS 1 (At Least Once) + idempotence côté Lambda : plus simple, plus
 
 ## 2. AWS Lambda — Traitement événementiel
 
+### Vue d'ensemble des fonctions
+
+Le système comporte trois fonctions Lambda avec des responsabilités distinctes :
+
+| Fonction | Déclencheur | Sortie | Rôle |
+|---|---|---|---|
+| `AnalyzeVibration` | IoT Rules Engine | DynamoDB | État temps réel du poste |
+| `StoreMetrics` | IoT Rules Engine | S3 | Archivage brut data lake |
+| `DetectAnomaly` | IoT Rules Engine | EventBridge | Détection avancée → moteur de décision |
+
+`AnalyzeVibration` et `StoreMetrics` sont des fonctions de **persistence** (écriture directe).
+`DetectAnomaly` est une fonction de **décision** — elle publie sur EventBridge et laisse les consommateurs réagir indépendamment.
+
 ### Problème adressé
 
 Les messages MQTT arrivent en continu depuis les capteurs. Deux traitements doivent s'exécuter sur chaque message, de façon indépendante et sans serveur à gérer :
@@ -248,6 +261,74 @@ Lambda est choisi car la charge est événementielle, pas continue : payer un co
 Première invocation après inactivité : ~200-500ms de démarrage.
 Impact négligeable ici : les messages arrivent toutes les 2 secondes, Lambda reste chaud en permanence.
 Si le besoin évolue vers du temps réel strict (< 50ms), on activerait **Provisioned Concurrency** pour maintenir des instances pré-démarrées.
+
+---
+
+### DetectAnomaly — Règles métier avancées
+
+#### Problème adressé
+
+`AnalyzeVibration` détecte les anomalies par seuil simple (une métrique dépasse un threshold).
+Mais les pannes industrielles réelles sont souvent **multi-dimensionnelles** : une vibration modérée combinée à une température élevée est plus critique que chacune prise séparément.
+
+`DetectAnomaly` introduit des règles métier combinées et publie le résultat sur **EventBridge** plutôt que d'écrire directement dans DynamoDB — découplage total avec les consommateurs.
+
+#### Architecture
+
+```mermaid
+flowchart TD
+    RULE[IoT Rules Engine
+SELECT * FROM assembly-line/+/metrics] -->|invoke| DA
+
+    subgraph DA["Lambda — DetectAnomaly"]
+        RULES_ENGINE[Évaluation des règles\nmulti-dimensionnelles]
+        IDEM[Vérification idempotence\nid_poste + timestamp]
+    end
+
+    DA -->|PutEvents| EB[EventBridge Bus\nsmart-assembly-events]
+
+    subgraph EVENTS["Événements publiés"]
+        E1[anomalie.critique\nvibration + temp élevées simultanées]
+        E2[anomalie.warn\nseuil unique dépassé]
+        E3[mesure.normale\naucun seuil dépassé]
+    end
+
+    EB --> E1
+    EB --> E2
+    EB --> E3
+
+    E1 -->|rule| SQS[SQS\nInterventionQueue]
+    SQS --> SF[Step Functions\nInterventionWorkflow]
+```
+
+#### Règles métier combinées
+
+| Règle | Condition | Sévérité | Action |
+|---|---|---|---|
+| Surchauffe critique | temp > 95°C | CRITICAL | Alerte immédiate + arrêt poste |
+| Vibration critique | vib > 2.5 m/s² | CRITICAL | Alerte immédiate |
+| Combo dangereux | vib > 1.5 ET temp > 80°C | CRITICAL | Risque de défaillance accélérée |
+| Seuil WARN simple | vib > 1.5 OU temp > 80°C OU pres > 5.0 | WARN | Surveillance renforcée |
+| Normal | aucun seuil dépassé | OK | Aucune action |
+
+Le **combo dangereux** est la valeur ajoutée de `DetectAnomaly` par rapport à `AnalyzeVibration` : deux métriques en WARN simultanément peuvent indiquer un risque CRITICAL même si aucune n'atteint son seuil CRITICAL individuel.
+
+#### Décisions de conception justifiées
+
+**Sortie EventBridge — pas DynamoDB directement**
+`AnalyzeVibration` écrit directement dans DynamoDB (couplage direct).
+`DetectAnomaly` publie sur EventBridge (découplage total).
+Si on ajoute un nouveau consommateur (SNS, Slack, PagerDuty), on ajoute une règle EventBridge — sans toucher à `DetectAnomaly`.
+C'est le pattern **Open/Closed** : ouvert à l'extension, fermé à la modification.
+
+**Idempotence par `id_poste` + `timestamp`**
+IoT MQTT QoS 1 peut livrer le même message deux fois.
+`DetectAnomaly` vérifie si l'événement a déjà été traité avant de publier sur EventBridge.
+Un double-publish déclencherait deux workflows d'intervention pour la même mesure — inacceptable en contexte industriel.
+
+**Logs structurés JSON**
+Chaque exécution produit un log JSON avec `id_poste`, `statut`, `règle_déclenchée`, `timestamp`.
+CloudWatch Logs Insights peut alors faire des requêtes : "combien d'anomalies CRITICAL sur poste_1 cette semaine ?"
 
 ---
 
@@ -630,7 +711,7 @@ Tout le trafic HTTP est redirigé vers HTTPS au niveau de l'ALB.
 Le certificat TLS est terminé à l'ALB — les instances backend communiquent en HTTP interne dans le VPC privé.
 Résultat : chiffrement bout-en-bout depuis le navigateur jusqu'à l'ALB, sans complexité TLS sur le backend.
 
-### Trade-offs 
+### Trade-offs
 
 **ALB vs NLB (Network Load Balancer)**
 Le NLB opère en couche 4 (TCP) — plus rapide, adapté aux flux MQTT ou TCP bruts.
@@ -649,12 +730,12 @@ Pour un tableau de bord opérateur avec trafic constant, l'ALB est plus avantage
 
 ## 7. KMS — Chiffrement bout-en-bout
 
-### Problèmatique
+### Problème adressé
 
 Par défaut, S3 et DynamoDB utilisent des clés AWS managées (`aws/s3`, `aws/dynamodb`).
 Ces clés appartiennent à AWS — on ne contrôle pas leur utilisation, et aucun audit granulaire n'est possible.
 
-En contexte industriel réglementé, ce n'est pas acceptable : l'auditeur veut savoir **qui** a accédé à quelle donnée, **quand**, et **depuis quel rôle**.
+En contexte aérospatial réglementaire, ce n'est pas acceptable : l'auditeur veut savoir **qui** a accédé à quelle donnée, **quand**, et **depuis quel rôle**.
 Une Customer Managed Key (CMK) répond à cette exigence : chaque accès à la clé est tracé dans CloudTrail.
 
 ### Architecture — Envelope Encryption
@@ -701,12 +782,12 @@ CMK           →  stockée dans HSM AWS, jamais exposée ni exportable
 
 Pour déchiffrer : S3/DynamoDB demande à KMS de déchiffrer la DEK → utilise la DEK pour déchiffrer la donnée → la DEK est détruite en mémoire.
 
-### Décisions de conception
+### Décisions de conception justifiées
 
 **CMK vs clé AWS managée**
 La clé AWS managée est gratuite mais opaque — AWS la gère entièrement, aucun audit des accès possible.
 La CMK coûte $1/mois mais donne le contrôle total : Key Policy granulaire, audit CloudTrail de chaque utilisation, rotation configurable.
-En contexte réglementaire (RGPD), la traçabilité des accès aux données est une exigence d'audit — la CMK est non négociable.
+En contexte réglementaire aérospatial (DO-178C, EN 9100), la traçabilité des accès aux données est une exigence d'audit — la CMK est non négociable.
 
 **Key Policy — least privilege**
 Seuls les rôles qui ont besoin de la clé y ont accès :
@@ -737,11 +818,11 @@ SSE-KMS est le bon compromis : AWS gère le chiffrement/déchiffrement de façon
 
 $1/mois par clé + $0.03 pour 10 000 appels API KMS. Négligeable — c'est une ressource permanente.
 
-
+---
 
 ## 8. IAM avancé — Contrôle d'accès granulaire
 
-### Problèmatique abordée
+### Problème adressé
 
 Un rôle IAM avec trop de permissions est une bombe à retardement : si Lambda est compromise, l'attaquant hérite de tous ses droits.
 Deux risques concrets dans notre architecture :
@@ -809,7 +890,7 @@ Refusé en écriture S3]
 
 Seul `smart-assembly-lambda-role` peut écrire dans le data lake. Lecture interdite depuis Lambda (séparation des responsabilités : Lambda écrit, les outils analytiques lisent).
 
-### Décisions de conception
+### Décisions de conception justifiées
 
 **Permission Boundary sur le rôle Lambda**
 Sans boundary, une misconfiguration ou une injection de code dans Lambda pourrait permettre à l'attaquant de s'octroyer des droits IAM supplémentaires.
