@@ -52,4 +52,5 @@ nav:
   - Architecture:
     - Vue globale: architecture/global.md
     - Par composant: architecture/components.md
+    - Sécurité: architecture/security.md
   - Runbook: runbook/index.md
