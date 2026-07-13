@@ -313,7 +313,7 @@ SELECT * FROM assembly-line/+/metrics] -->|invoke| DA
 
 Le **combo dangereux** est la valeur ajoutée de `DetectAnomaly` par rapport à `AnalyzeVibration` : deux métriques en WARN simultanément peuvent indiquer un risque CRITICAL même si aucune n'atteint son seuil CRITICAL individuel.
 
-#### Décisions de conception
+#### Décisions de conception justifiées
 
 **Sortie EventBridge — pas DynamoDB directement**
 `AnalyzeVibration` écrit directement dans DynamoDB (couplage direct).
@@ -331,14 +331,6 @@ Chaque exécution produit un log JSON avec `id_poste`, `statut`, `règle_déclen
 CloudWatch Logs Insights peut alors faire des requêtes : "combien d'anomalies CRITICAL sur poste_1 cette semaine ?"
 
 ---
-
-#### Idempotence & Retry strategy
-
-**Idempotence — clé `id_poste` + `timestamp`**
-
-Chaque message MQTT reçu est identifié par `id_poste` + `timestamp`.
-Après traitement, `DetectAnomaly` écrit `detect_last_timestamp` dans DynamoDB.
-Si le même message arrive une deuxième fois (QoS 1 peut dupliquer), la fonction détecte le doublon et retourne `duplicate_skipped` sans publier sur EventBridge.
 
 ## 3. S3 — Data Lake
 
@@ -718,6 +710,170 @@ Les opérateurs ne voient aucune interruption — la bascule est transparente et
 Tout le trafic HTTP est redirigé vers HTTPS au niveau de l'ALB.
 Le certificat TLS est terminé à l'ALB — les instances backend communiquent en HTTP interne dans le VPC privé.
 Résultat : chiffrement bout-en-bout depuis le navigateur jusqu'à l'ALB, sans complexité TLS sur le backend.
+
+---
+
+## 9. EventBridge — Bus d'événements
+
+### Problème adressé
+
+`DetectAnomaly` publie un événement d'anomalie. Plusieurs systèmes doivent réagir :
+- Une queue d'intervention (SQS) pour déclencher un workflow
+- Un système d'alerte (SNS/email) pour notifier l'opérateur
+- CloudWatch pour tracer les anomalies
+
+Sans EventBridge, `DetectAnomaly` devrait connaître chaque consommateur et les appeler directement — couplage fort. Si on ajoute un nouveau consommateur, il faut modifier `DetectAnomaly`.
+
+EventBridge inverse ce couplage : `DetectAnomaly` publie un événement, les consommateurs s'abonnent indépendamment. C'est le pattern **publish/subscribe** au niveau cloud.
+
+### Architecture
+
+```mermaid
+flowchart TD
+    DA[Lambda\nDetectAnomaly] -->|PutEvents\nsource: smart-assembly.iot| BUS
+
+    subgraph BUS["EventBridge Bus — smart-assembly-events"]
+        R1[Règle 1\ndetail-type = anomalie.critique\n→ SQS InterventionQueue]
+        R2[Règle 2\ndetail-type = anomalie.warn\n→ CloudWatch Logs]
+        R3[Règle 3\ndetail-type = mesure.normale\n→ aucune action]
+        R4[Règle 4 🔜\ndetail-type = anomalie.critique\n→ SNS email opérateur]
+    end
+
+    R1 -->|routage| SQS[SQS\nInterventionQueue]
+    R2 -->|routage| CW[CloudWatch\nLogs]
+    R3 --- NONE[aucune action]
+    R4 -.->|à venir S6| SNS[SNS\nAlertes email/SMS\nopérateur]
+    SQS --> SF[Step Functions\nInterventionWorkflow]
+```
+
+### Format des événements publiés
+
+```json
+{
+  "source": "smart-assembly.iot",
+  "detail-type": "anomalie.critique",
+  "detail": {
+    "id_poste":  "poste_1",
+    "statut":    "CRITICAL",
+    "regle":     "combo.dangereux",
+    "detail":    "multi-warn: vib=1.6, temp=82.0, pres=4.5",
+    "mesures": {
+      "vibration":   1.6,
+      "temperature": 82.0,
+      "pression":    4.5
+    },
+    "timestamp": "2026-07-12T14:00:00+00:00"
+  }
+}
+```
+
+### Décisions de conception justifiées
+
+**Bus custom vs bus default AWS**
+AWS fournit un bus `default` partagé entre tous les services du compte.
+On crée un bus dédié `smart-assembly-events` : isolation totale, pas de pollution par les événements AWS système, contrôle d'accès indépendant.
+
+**`detail-type` comme discriminant de routage**
+Le `detail-type` encode la sévérité (`anomalie.critique`, `anomalie.warn`, `mesure.normale`).
+Les règles EventBridge filtrent sur ce champ — pas besoin de parser le `detail` JSON pour savoir comment router.
+C'est le pattern **semantic routing** : le type de l'événement suffit à décider de sa destination.
+
+**Fanout natif — un événement, plusieurs consommateurs**
+Une anomalie critique déclenche simultanément SQS (intervention) et CloudWatch (audit) via deux règles distinctes.
+`DetectAnomaly` publie une seule fois — EventBridge se charge du fanout.
+Ajouter un nouveau consommateur = ajouter une règle Terraform, zéro modification du code Lambda.
+
+**At-least-once delivery assumé**
+EventBridge livre at-least-once — un événement peut être délivré deux fois en cas de retry interne.
+Les consommateurs (SQS, Step Functions) doivent être idempotents en conséquence.
+C'est le même pattern qu'avec MQTT QoS 1 : on assume at-least-once et on conçoit l'idempotence côté consommateur.
+
+### Trade-offs
+
+**EventBridge vs SNS pour le fanout**
+SNS est plus simple pour un fanout point-à-point vers Lambda/SQS/HTTP.
+EventBridge ajoute le **filtrage par contenu** (pattern matching sur le JSON) — SNS ne peut filtrer que sur des attributs de message simples.
+Pour un système industriel où différents types d'anomalies doivent aller vers différentes destinations, EventBridge est plus expressif.
+
+**EventBridge vs SQS direct depuis Lambda**
+Lambda pourrait publier directement dans SQS sans passer par EventBridge.
+EventBridge ajoute une couche mais apporte le découplage : si on remplace SQS par Step Functions direct, on change une règle Terraform, pas le code Lambda.
+Le coût supplémentaire (~$1 pour 1 million d'événements) est négligeable face au gain en maintenabilité.
+
+---
+
+---
+
+## 10. SQS — File d'attente d'intervention
+
+### Problème adressé
+
+Quand EventBridge détecte une `anomalie.critique`, il faut déclencher un workflow d'intervention.
+Mais EventBridge ne peut pas invoquer Step Functions directement de façon fiable sans tampon : si Step Functions est temporairement indisponible ou saturé, l'événement est perdu.
+
+SQS joue le rôle de **tampon durable** entre EventBridge et Step Functions :
+- Si Step Functions est lent, les messages s'accumulent dans la queue sans être perdus
+- Si un workflow échoue, le message est retentié automatiquement jusqu'à 3 fois
+- Après 3 échecs, le message est transféré dans la **Dead Letter Queue** pour analyse
+
+### Architecture
+
+```mermaid
+flowchart TD
+    EB[EventBridge\nanomalie.critique] -->|SendMessage| SQS
+
+    subgraph SQS_ARCH["SQS — smart-assembly-intervention"]
+        Q[Queue principale\nrétention 24h\nlong polling 20s\nvisibility timeout 30s]
+        REDRIVE[Redrive Policy\nmaxReceiveCount = 3]
+    end
+
+    subgraph DLQ["Dead Letter Queue\nsmart-assembly-intervention-dlq"]
+        DEAD[Messages en échec\naprès 3 tentatives\nrétention 14 jours]
+    end
+
+    SQS -->|après 3 échecs| DLQ
+    SQS -->|poll| SF[Step Functions\nInterventionWorkflow\nà venir Jour 19]
+```
+
+### Décisions de conception justifiées
+
+**Long polling — `receive_wait_time_seconds = 20`**
+Sans long polling, le consommateur (Step Functions / Lambda) interroge SQS en continu même quand la queue est vide — coût inutile et CPU gaspillé.
+Avec long polling à 20s, SQS attend jusqu'à 20 secondes qu'un message arrive avant de répondre vide.
+Pour un système d'intervention industrielle, une latence de 20s est parfaitement acceptable et réduit le coût de polling de 95%.
+
+**Visibility timeout à 30 secondes**
+Quand Step Functions récupère un message, SQS le rend invisible aux autres consommateurs pendant 30s.
+Si Step Functions ne confirme pas (`DeleteMessage`) dans ce délai → SQS suppose un échec et remet le message visible.
+30s est supérieur au timeout Step Functions attendu (< 10s) — marge de sécurité suffisante.
+
+**Dead Letter Queue — `maxReceiveCount = 3`**
+Après 3 tentatives infructueuses, le message est déplacé en DLQ.
+La DLQ conserve les messages 14 jours — temps suffisant pour déboguer un workflow défaillant, inspecter le payload, et rejouer manuellement si nécessaire.
+Sans DLQ, un message "poison pill" (malformé, qui fait planter le consommateur) bloquerait la queue indéfiniment.
+
+**Rétention 24h sur la queue principale**
+Une intervention sur une anomalie critique ne peut pas attendre plus de 24h — si le message n'est pas traité dans ce délai, il est périmé.
+La DLQ conserve 14 jours pour l'analyse post-mortem.
+
+**SQS Queue Policy — `aws:SourceArn` = ARN de la règle EventBridge**
+La policy autorise `events.amazonaws.com` à envoyer des messages.
+La condition `aws:SourceArn` doit pointer vers l'ARN de la **règle EventBridge** (pas du bus).
+C'est un piège classique : EventBridge propage l'ARN de la règle comme `SourceArn`, pas celui du bus — une erreur sur ce point fait échouer silencieusement les livraisons.
+
+### Trade-offs
+
+**SQS vs EventBridge → Step Functions direct**
+EventBridge peut invoquer Step Functions directement via un target `aws_cloudwatch_event_target`.
+Mais sans tampon SQS, si Step Functions rejette l'invocation (throttling, erreur interne), EventBridge retente jusqu'à 24h — comportement difficile à observer et à contrôler.
+SQS donne une visibilité claire : nombre de messages en attente, en échec, en DLQ — tout est observable avec des métriques CloudWatch natives.
+
+**SQS Standard vs SQS FIFO**
+SQS FIFO garantit l'ordre de traitement et l'exactly-once delivery.
+SQS Standard est choisi ici : les interventions d'anomalies critiques ne nécessitent pas d'ordre strict entre elles (chaque poste est indépendant).
+Step Functions gère l'idempotence côté consommateur — le at-least-once de SQS Standard est suffisant.
+
+---
 
 ### Trade-offs
 

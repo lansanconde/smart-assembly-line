@@ -77,42 +77,6 @@ aws iam delete-access-key --user-name NOM_USER --access-key-id AKIAXXXXXXXX
 
 ---
 
-## IAM avancé
-
-### Vérifier la permission boundary du rôle Lambda
-
-```bash
-aws iam get-role --role-name smart-assembly-lambda-role \
-  --query "Role.PermissionsBoundary"
-```
-
-### Vérifier la bucket policy S3
-
-```bash
-aws s3api get-bucket-policy \
-  --bucket smart-assembly-raw-data-169237360990 \
-  --query Policy --output text
-```
-
-### Vérifier que Lambda ne peut pas supprimer S3 (boundary)
-
-La permission boundary exclut `s3:DeleteObject`.
-Vérification indirecte : la policy et la boundary de Lambda ne contiennent que `s3:PutObject`.
-
-```bash
-aws iam get-policy-version \
-  --policy-arn arn:aws:iam::169237360990:policy/smart-assembly-lambda-boundary \
-  --version-id v1 \
-  --query "PolicyVersion.Document.Statement[].Action"
-```
-
-### Vérifier les policies attachées au rôle Lambda
-
-```bash
-aws iam list-attached-role-policies --role-name smart-assembly-lambda-role
-aws iam list-role-policies --role-name smart-assembly-lambda-role
-```
-
 ## VPC
 
 ### Vérifier l'état du VPC
@@ -243,229 +207,77 @@ aws dynamodb scan --table-name machine_state
 aws dynamodb describe-continuous-backups --table-name machine_state   --query "ContinuousBackupsDescription.PointInTimeRecoveryDescription"
 ```
 
-## IoT Core
+---
 
-### Vérifier les ressources IoT
+## EventBridge
 
+### Envoyer un événement de test sur le bus custom
+```powershell
+# Créer le fichier event
+@'
+[{"Source":"smart-assembly.iot","DetailType":"anomalie.critique","EventBusName":"smart-assembly-events","Detail":"{\"id_poste\":\"poste_1\",\"statut\":\"CRITICAL\",\"regle\":\"vibration.critique\",\"mesures\":{\"vibration\":3.1,\"temperature\":72,\"pression\":4.2}}"}]
+'@ | Out-File -FilePath event_test.json -Encoding utf8
+
+# Envoyer
+aws events put-events --entries file://event_test.json
+```
+
+### Vérifier les règles de routage sur le bus
 ```bash
-# Lister les Things
-aws iot list-things
-
-# Lister les certificats
-aws iot list-certificates
-
-# Vérifier les policies attachées à un certificat
-aws iot list-principal-policies \
-  --principal arn:aws:iot:eu-west-3:169237360990:cert/<CERT_ID>
-
-# Lister les Things attachés à un certificat
-aws iot list-principal-things \
-  --principal arn:aws:iot:eu-west-3:169237360990:cert/<CERT_ID>
+aws events list-rules --event-bus-name smart-assembly-events \
+  --query "Rules[*].{Nom:Name,Statut:State,Pattern:EventPattern}"
 ```
 
-### Endpoint IoT
-
+### Vérifier les targets d'une règle
 ```bash
-aws iot describe-endpoint --endpoint-type iot:Data-ATS
+aws events list-targets-by-rule \
+  --rule smart-assembly-critical-to-sqs \
+  --event-bus-name smart-assembly-events
 ```
 
-### Tester la connexion MQTT
+---
 
-1. Console AWS → IoT Core → **MQTT Test Client**
-2. Subscribe to topic : `assembly-line/poste_1/metrics`
-3. Lancer le simulateur :
+## SQS
 
+### Lire un message dans la queue d'intervention (sans le supprimer)
 ```bash
-cd iot-simulator
-python publish_vibration.py
+aws sqs receive-message \
+  --queue-url https://sqs.eu-west-3.amazonaws.com/169237360990/smart-assembly-intervention \
+  --max-number-of-messages 1
 ```
 
-### Attacher une policy à un certificat
-
+### Voir le nombre de messages en attente
 ```bash
-aws iot attach-policy \
-  --policy-name smart-assembly-device-policy \
-  --target arn:aws:iot:eu-west-3:169237360990:cert/<CERT_ID>
+aws sqs get-queue-attributes \
+  --queue-url https://sqs.eu-west-3.amazonaws.com/169237360990/smart-assembly-intervention \
+  --attribute-names ApproximateNumberOfMessages,ApproximateNumberOfMessagesNotVisible
 ```
 
-## Lambda
-
-### Lister les fonctions déployées
-
+### Vérifier la DLQ (messages en échec)
 ```bash
-aws lambda list-functions --query 'Functions[?starts_with(FunctionName, `smart-assembly`)].{Nom:FunctionName,Runtime:Runtime,Timeout:Timeout}'
+aws sqs get-queue-attributes \
+  --queue-url https://sqs.eu-west-3.amazonaws.com/169237360990/smart-assembly-intervention-dlq \
+  --attribute-names ApproximateNumberOfMessages
 ```
 
-### Invoquer une fonction manuellement (test)
-
+### Purger la queue (vider tous les messages — attention)
 ```bash
-# Écrire le payload dans un fichier
-echo '{"id_poste":"poste_1","vibration":1.8,"temperature":82.0,"pression":4.5,"timestamp":"2026-07-11T10:00:00+00:00"}' > payload.json
-
-# Invoquer
-aws lambda invoke \
-  --function-name smart-assembly-analyze-vibration \
-  --payload file://payload.json \
-  response.json && cat response.json
+aws sqs purge-queue \
+  --queue-url https://sqs.eu-west-3.amazonaws.com/169237360990/smart-assembly-intervention
 ```
 
-### Consulter les logs CloudWatch
-
+### Vérifier la queue policy (qui peut envoyer des messages)
 ```bash
-# Derniers logs de AnalyzeVibration
-aws logs tail /aws/lambda/smart-assembly-analyze-vibration --since 1h
-
-# Derniers logs de StoreMetrics
-aws logs tail /aws/lambda/smart-assembly-store-metrics --since 1h
+aws sqs get-queue-attributes \
+  --queue-url https://sqs.eu-west-3.amazonaws.com/169237360990/smart-assembly-intervention \
+  --attribute-names Policy
 ```
 
-### Vérifier les objets S3 archivés
+!!! warning "Piège aws:SourceArn"
+    La condition `aws:SourceArn` dans la SQS queue policy doit pointer vers l'**ARN de la règle EventBridge**,
+    pas l'ARN du bus. Une erreur sur ce point fait échouer silencieusement les livraisons sans aucune erreur visible.
 
-```bash
-aws s3 ls s3://smart-assembly-raw-data-169237360990/ --recursive
-```
-
-### IoT Rules Engine — vérifier les règles actives
-
-```bash
-aws iot list-topic-rules
-```
-
-## NAT Gateway
-
-> ⚠️ Ressource coûteuse (~$32/mois). Créer uniquement pour un lab, détruire immédiatement après.
-
-### Créer la NAT Gateway
-
-```bash
-terraform apply \
-  -target="aws_eip.nat" \
-  -target="aws_nat_gateway.main" \
-  -target="aws_route.private_nat"
-```
-
-### Vérifier la route dans le subnet privé
-
-```bash
-aws ec2 describe-route-tables \
-  --filters "Name=tag:Name,Values=smart-assembly-rt-private" \
-  --query "RouteTables[].Routes"
-```
-
-La route `0.0.0.0/0 → nat-xxxxxxx` doit apparaître.
-
-### Détruire après le lab (obligatoire)
-
-```bash
-terraform destroy \
-  -target="aws_route.private_nat" \
-  -target="aws_nat_gateway.main" \
-  -target="aws_eip.nat"
-```
-## Application Load Balancer
-
-> ⚠️ Ressource coûteuse (~$18/mois). Créer uniquement pour un lab ou la production — détruire après le lab.
-
-### Créer l'ALB
-
-```bash
-terraform apply \
-  -target="aws_subnet.public_b" \
-  -target="aws_route_table_association.public_b" \
-  -target="aws_security_group.alb" \
-  -target="aws_lb.main" \
-  -target="aws_lb_target_group.backend" \
-  -target="aws_lb_listener.http"
-```
-
-### Vérifier l'état de l'ALB
-
-```bash
-aws elbv2 describe-load-balancers \
-  --names smart-assembly-alb \
-  --query "LoadBalancers[].{State:State.Code,DNS:DNSName,AZs:AvailabilityZones[].ZoneName}"
-```
-
-### Vérifier le Target Group
-
-```bash
-aws elbv2 describe-target-health \
-  --target-group-arn arn:aws:elasticloadbalancing:eu-west-3:169237360990:targetgroup/smart-assembly-backend-tg/913b37b4350dd4ea
-```
-
-### Détruire après le lab (obligatoire)
-
-```bash
-terraform destroy \
-  -target="aws_lb_listener.http" \
-  -target="aws_lb.main" \
-  -target="aws_lb_target_group.backend" \
-  -target="aws_security_group.alb" \
-  -target="aws_route_table_association.public_b" \
-  -target="aws_subnet.public_b"
-```
-
-## KMS
-
-### Vérifier la clé CMK
-
-```bash
-aws kms describe-key --key-id alias/smart-assembly-key \
-  --query "KeyMetadata.{ID:KeyId,Statut:KeyState,Rotation:KeyRotationStatus}"
-```
-
-### Vérifier que S3 utilise la CMK
-
-```bash
-aws s3api get-bucket-encryption \
-  --bucket smart-assembly-raw-data-169237360990
-```
-
-### Vérifier que DynamoDB utilise la CMK
-
-```bash
-aws dynamodb describe-table \
-  --table-name machine_state \
-  --query "Table.SSEDescription"
-```
-
-## EventBridge + DetectAnomaly
-
-### Vérifier le bus EventBridge
-
-```bash
-aws events describe-event-bus --name smart-assembly-events
-```
-
-### Lister les règles du bus
-
-```bash
-aws events list-rules --event-bus-name smart-assembly-events
-```
-
-### Tester DetectAnomaly — combo dangereux
-
-Console AWS → Lambda → `smart-assembly-detect-anomaly` → Test :
-
-```json
-{
-  "id_poste": "poste_1",
-  "vibration": 1.6,
-  "temperature": 82.0,
-  "pression": 4.5,
-  "timestamp": "2026-07-12T14:00:00+00:00"
-}
-```
-
-Résultat attendu : `"statut": "CRITICAL"`, `"regle": "combo.dangereux"`
-
-### Consulter les logs CloudWatch
-
-```bash
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/smart-assembly-detect-anomaly \
-  --limit 10
-```
+---
 
 ## Coûts AWS
 
