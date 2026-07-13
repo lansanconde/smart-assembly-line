@@ -123,4 +123,22 @@ resource "aws_lambda_permission" "iot_invoke_detect" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.detect_anomaly.function_name
   principal     = "iot.amazonaws.com"
+  source_arn    = aws_iot_topic_rule.detect_anomaly.arn
+}
+
+resource "aws_iot_topic_rule" "detect_anomaly" {
+  name        = "smart_assembly_detect_anomaly"
+  enabled     = true
+  sql         = "SELECT * FROM 'assembly-line/+/metrics'"
+  sql_version = "2016-03-23"
+
+  lambda {
+    function_arn = aws_lambda_function.detect_anomaly.arn
+  }
+
+  tags = {
+    Name        = "smart-assembly-detect-anomaly-rule"
+    Project     = "smart-assembly-line"
+    Environment = "dev"
+  }
 }

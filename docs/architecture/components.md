@@ -875,6 +875,181 @@ Step Functions gère l'idempotence côté consommateur — le at-least-once de S
 
 ---
 
+---
+
+## 11. Step Functions — Orchestration du workflow d'intervention
+
+### Problème adressé
+
+Quand SQS reçoit une `anomalie.critique`, plusieurs actions doivent s'enchaîner de façon **fiable et traçable** :
+
+1. Vérifier si une intervention est déjà en cours sur ce poste (circuit breaker)
+2. Marquer le poste comme `EN_INTERVENTION` dans DynamoDB
+3. Logger l'intervention pour l'audit
+4. Gérer les erreurs et les retries à chaque étape
+
+Coder cet enchaînement dans une Lambda unique est fragile : si la Lambda crashe à l'étape 3, l'état intermédiaire est perdu et on ne sait pas où reprendre. Les retries et la gestion d'erreur doivent être codés manuellement.
+
+Step Functions externalise l'état du workflow hors du code. Chaque étape est une **State** persistée par AWS — un crash à l'étape 3 est visible dans la console, et le retry reprend exactement à l'étape 3.
+
+### Architecture
+
+```mermaid
+flowchart TD
+    SQS[SQS\nInterventionQueue] -->|trigger| PROC
+
+    subgraph PROC["Lambda — SQSProcessor"]
+        POLL[Poll SQS\nStartExecution]
+    end
+
+    PROC -->|StartExecution| SM
+
+    subgraph SM["State Machine — InterventionWorkflow"]
+        S1[CheckCircuitBreaker\nDynamoDB GetItem]
+        S2{Choice\nstatut?}
+        S3[UpdateStatus\nEN_INTERVENTION]
+        S4[LogIntervention\nCloudWatch]
+        S5([Succeed])
+        S6([Fail\nCircuitOpen])
+
+        S1 --> S2
+        S2 -->|EN_INTERVENTION| S6
+        S2 -->|autre| S3
+        S3 --> S4
+        S4 --> S5
+    end
+```
+
+### États du workflow
+
+| État | Type ASL | Action | Sortie |
+|---|---|---|---|
+| `CheckCircuitBreaker` | `Task` | DynamoDB `GetItem` sur `id_poste` | Item DynamoDB complet |
+| `Choice` | `Choice` | Si `statut == EN_INTERVENTION` → Fail | Branchement conditionnel |
+| `UpdateStatus` | `Task` | DynamoDB `UpdateItem` → `statut = EN_INTERVENTION` | Confirmation mise à jour |
+| `LogIntervention` | `Task` | Lambda log structuré JSON dans CloudWatch | Log d'audit |
+| `Succeed` | `Succeed` | Fin du workflow en succès | — |
+| `Fail (CircuitOpen)` | `Fail` | Fin du workflow — circuit déjà ouvert | Cause: `InterventionDejaEnCours` |
+
+### Pattern Circuit Breaker
+
+Le circuit breaker empêche de lancer deux workflows d'intervention simultanés sur le même poste.
+
+```mermaid
+flowchart LR
+    subgraph OPEN["Circuit OUVERT"]
+        O1[poste_1\nstatut: EN_INTERVENTION]
+    end
+
+    subgraph CLOSED["Circuit FERMÉ"]
+        C1[poste_1\nstatut: CRITICAL]
+    end
+
+    NEW[Nouvelle anomalie\ncritique poste_1]
+
+    NEW -->|DynamoDB GetItem| OPEN
+    OPEN -->|statut == EN_INTERVENTION| FAIL[Fail — CircuitOpen\npas de doublon]
+
+    NEW2[Nouvelle anomalie\ncritique poste_2]
+    NEW2 -->|DynamoDB GetItem| CLOSED
+    CLOSED -->|statut != EN_INTERVENTION| OK[Workflow démarre\nnormalement]
+```
+
+Sans circuit breaker : 10 anomalies critiques en rafale sur `poste_1` → 10 workflows simultanés, 10 techniciens envoyés sur le même poste.
+Avec circuit breaker : seul le premier workflow passe, les suivants sont court-circuités proprement.
+
+### Amazon States Language (ASL) — extrait
+
+```json
+{
+  "Comment": "Workflow d'intervention suite à anomalie critique",
+  "StartAt": "CheckCircuitBreaker",
+  "States": {
+    "CheckCircuitBreaker": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:getItem",
+      "Parameters": {
+        "TableName": "machine_state",
+        "Key": {
+          "id_poste": { "S.$": "$.id_poste" }
+        }
+      },
+      "ResultPath": "$.dynamodb_result",
+      "Next": "EvalCircuit"
+    },
+    "EvalCircuit": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.dynamodb_result.Item.statut.S",
+          "StringEquals": "EN_INTERVENTION",
+          "Next": "CircuitOuvert"
+        }
+      ],
+      "Default": "UpdateStatus"
+    },
+    "CircuitOuvert": {
+      "Type": "Fail",
+      "Error": "CircuitOpen",
+      "Cause": "Intervention déjà en cours sur ce poste"
+    },
+    "UpdateStatus": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "machine_state",
+        "Key": { "id_poste": { "S.$": "$.id_poste" } },
+        "UpdateExpression": "SET statut = :s",
+        "ExpressionAttributeValues": { ":s": { "S": "EN_INTERVENTION" } }
+      },
+      "Next": "LogIntervention"
+    },
+    "LogIntervention": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:eu-west-3:169237360990:function:smart-assembly-log-intervention",
+      "End": true
+    }
+  }
+}
+```
+
+### Décisions de conception justifiées
+
+**Express Workflow — pas Standard**
+Les interventions durent moins de 5 minutes — la limite Standard (1 an) est inutile ici.
+Express coûte $1/million d'exécutions vs $0.025/1000 transitions pour Standard.
+Pour un système IoT haute fréquence (une anomalie toutes les secondes en cas de problème), Express est largement plus économique.
+Contrepartie : l'historique des exécutions n'est pas conservé nativement — on le compense avec des logs CloudWatch structurés.
+
+**SDK Integrations — DynamoDB natif sans Lambda**
+Step Functions peut appeler DynamoDB directement via `arn:aws:states:::dynamodb:getItem` sans passer par une Lambda intermédiaire.
+C'est une **optimized integration** : moins de latence (pas de cold start Lambda), moins de coût (pas d'invocation Lambda), moins de code à maintenir.
+La règle : si Step Functions supporte l'intégration native avec le service AWS, on l'utilise — Lambda est réservé à la logique métier qui ne peut pas être exprimée en ASL.
+
+**`ResultPath` pour préserver l'input**
+Sans `ResultPath`, le résultat de `CheckCircuitBreaker` écrase l'input initial (le payload SQS).
+`"ResultPath": "$.dynamodb_result"` merge le résultat dans l'input sous la clé `dynamodb_result` — le payload original reste accessible dans les états suivants.
+C'est un pattern fondamental ASL à maîtriser pour les entretiens.
+
+**Lambda SQSProcessor — Option A vs EventBridge Pipes**
+EventBridge Pipes permettrait de connecter SQS → Step Functions sans Lambda.
+On choisit une Lambda intermédiaire pour trois raisons : contrôle explicite des erreurs de parsing SQS, possibilité de filtrer les messages avant de démarrer, et visibilité claire dans les logs CloudWatch.
+EventBridge Pipes sera envisagé si le volume de messages justifie de réduire la latence.
+
+### Trade-offs
+
+**Step Functions vs Lambda seul pour l'orchestration**
+Une Lambda unique pourrait enchaîner toutes les étapes avec des `await` successifs.
+Mais si Lambda crashe à l'étape 3, on ne sait pas où en était le workflow — pas de visibilité, pas de reprise partielle possible.
+Step Functions persiste l'état à chaque transition : un crash à l'étape 3 est visible dans la console, le retry repart de l'étape 3, pas du début.
+
+**Step Functions vs SQS pour la séquence d'états**
+SQS pourrait simuler une orchestration avec plusieurs queues chaînées.
+Mais SQS n'a pas de notion de branchement conditionnel (Choice), de timeout par étape, ni de visibilité sur l'état global du workflow.
+Step Functions est conçu exactement pour ça — c'est son domaine.
+
+---
+
 ### Trade-offs
 
 **ALB vs NLB (Network Load Balancer)**

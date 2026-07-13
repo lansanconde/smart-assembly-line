@@ -35,20 +35,13 @@ def on_connection_resumed(connection, return_code, session_present, **kwargs):
 
 
 def build_payload() -> dict:
-    """Génère une mesure réaliste avec dérive occasionnelle."""
-    vibration   = round(random.uniform(0.1, 2.5), 2)
-    temperature = round(random.uniform(65.0, 85.0), 1)
+    """Force des valeurs en zone WARN/CRITICAL pour le test pipeline."""
+    vibration   = round(random.uniform(1.6, 3.2), 2)   # toujours > 1.5 WARN
+    temperature = round(random.uniform(81.0, 98.0), 1)  # toujours > 80 WARN
     pression    = round(random.uniform(3.5, 5.5), 2)
-
-    statut = "OK"
-    if vibration > SEUILS["vibration"]:
-        statut = "WARN"
-    if temperature > SEUILS["temperature"]:
-        statut = "WARN"
 
     return {
         "id_poste":    CLIENT_ID,
-        "statut":      statut,
         "vibration":   vibration,
         "temperature": temperature,
         "pression":    pression,
@@ -84,7 +77,7 @@ def main():
                 payload = json.dumps(payload),
                 qos     = mqtt.QoS.AT_LEAST_ONCE,
             )
-            statut_label = "⚠ WARN" if payload["statut"] == "WARN" else "✓ OK  "
+            statut_label = "⚠ CRIT" if payload["vibration"] >= 2.5 else "⚠ WARN"
             print(f"[{statut_label}] vib={payload['vibration']} temp={payload['temperature']} pres={payload['pression']}")
             time.sleep(2)
 

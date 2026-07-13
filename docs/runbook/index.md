@@ -279,6 +279,73 @@ aws sqs get-queue-attributes \
 
 ---
 
+## Step Functions
+
+### Lister les exécutions récentes de la state machine
+```bash
+aws stepfunctions list-executions \
+  --state-machine-arn arn:aws:states:eu-west-3:169237360990:stateMachine:smart-assembly-intervention-workflow \
+  --max-results 10
+```
+
+!!! warning "Express Workflows — affichage console"
+    Les Express Workflows n'affichent pas toujours les exécutions en temps réel dans la console AWS.
+    La source de vérité est **DynamoDB** (`statut = EN_INTERVENTION`) et **CloudWatch Logs** (`/aws/lambda/smart-assembly-log-intervention`).
+
+### Vérifier qu'une intervention a bien été loguée
+```bash
+aws logs filter-log-events \
+  --log-group-name /aws/lambda/smart-assembly-log-intervention \
+  --start-time 1783900000 \
+  --limit 5 \
+  --query "events[*].message"
+```
+
+### Vérifier les logs d'exécution Step Functions (CloudWatch)
+```bash
+aws logs filter-log-events \
+  --log-group-name /aws/states/smart-assembly-intervention-workflow \
+  --start-time 1783900000 \
+  --limit 10 \
+  --query "events[*].message"
+```
+
+### Réinitialiser le circuit breaker manuellement (après intervention)
+```powershell
+# Remet le poste en statut CRITICAL pour permettre une nouvelle intervention
+[System.IO.File]::WriteAllText("$PWD\key.json", '{"id_poste":{"S":"poste_1"}}')
+[System.IO.File]::WriteAllText("$PWD\expr.json", '{":s":{"S":"CRITICAL"}}')
+aws dynamodb update-item --table-name machine_state --key file://key.json --update-expression "SET statut = :s" --expression-attribute-values file://expr.json
+```
+
+!!! tip "Circuit Breaker"
+    Tant que `statut = EN_INTERVENTION` dans DynamoDB, toute nouvelle anomalie critique est bloquée (CircuitOpen).
+    En production, ce reset serait déclenché par le technicien via l'API après confirmation de l'intervention.
+
+### Test pipeline complet (un seul event)
+```powershell
+# 1. Vérifier l'état du circuit
+[System.IO.File]::WriteAllText("$PWD\key.json", '{"id_poste":{"S":"poste_1"}}')
+aws dynamodb get-item --table-name machine_state --key file://key.json --query "Item.statut"
+
+# 2. Si EN_INTERVENTION, réinitialiser d'abord (voir ci-dessus)
+
+# 3. Purger la queue SQS pour éviter les messages stale
+aws sqs purge-queue --queue-url https://sqs.eu-west-3.amazonaws.com/169237360990/smart-assembly-intervention
+
+# 4. Envoyer un event depuis EventBridge console (anomalie.critique)
+# EventBridge → smart-assembly-events → Send events
+# Source: smart-assembly.iot | DetailType: anomalie.critique
+
+# 5. Vérifier le résultat dans DynamoDB (doit passer à EN_INTERVENTION)
+aws dynamodb get-item --table-name machine_state --key file://key.json --query "Item.statut"
+
+# 6. Vérifier le log d'intervention dans CloudWatch
+# /aws/lambda/smart-assembly-log-intervention
+```
+
+---
+
 ## Coûts AWS
 
 ### Voir une estimation des coûts du mois en cours
