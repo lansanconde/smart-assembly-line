@@ -346,6 +346,65 @@ aws dynamodb get-item --table-name machine_state --key file://key.json --query "
 
 ---
 
+## Chaos Day
+
+### Test 2 — Forcer l'échec Lambda → DLQ
+
+**Prérequis** : ajouter temporairement `FORCE_ERROR = true` dans les variables d'environnement de `smart-assembly-sqs-processor` (console Lambda → Configuration → Environment variables).
+
+```powershell
+# 1. Envoyer un event anomalie.critique
+[System.IO.File]::WriteAllText("$PWD\event_test.json", '[{"Source":"smart-assembly.iot","DetailType":"anomalie.critique","EventBusName":"smart-assembly-events","Detail":"{\"id_poste\":\"poste_1\",\"statut\":\"CRITICAL\",\"regle\":\"vibration.critique\",\"mesures\":{\"vibration\":3.1}}"}]')
+aws events put-events --entries file://event_test.json
+
+# 2. Attendre ~90s (3 retries × visibility_timeout 30s), puis vérifier la DLQ
+aws sqs get-queue-attributes `
+  --queue-url https://sqs.eu-west-3.amazonaws.com/169237360990/smart-assembly-intervention-dlq `
+  --attribute-names ApproximateNumberOfMessages
+
+# 3. Purger la DLQ après validation
+aws sqs purge-queue `
+  --queue-url https://sqs.eu-west-3.amazonaws.com/169237360990/smart-assembly-intervention-dlq
+```
+
+!!! warning "Terraform écrase les variables manuelles"
+    Toute variable ajoutée manuellement dans la console est supprimée au prochain `terraform apply`.
+    En production, définir `FORCE_ERROR = false` dans le `.tf` et le passer à `true` uniquement pour les tests.
+
+### Test 3 — Payload malformé (sans id_poste)
+
+```powershell
+# Envoyer un event sans id_poste
+[System.IO.File]::WriteAllText("$PWD\event_malformed.json", '[{"Source":"smart-assembly.iot","DetailType":"anomalie.critique","EventBusName":"smart-assembly-events","Detail":"{\"statut\":\"CRITICAL\",\"regle\":\"vibration.critique\",\"mesures\":{\"vibration\":3.1}}"}]')
+aws events put-events --entries file://event_malformed.json
+```
+
+Résultat attendu : `States.Runtime` dans CloudWatch Logs `/aws/states/smart-assembly-intervention-workflow` sur l'accès JSONPath `$.id_poste`.
+
+### Test 4 — Circuit breaker sous charge (5 events simultanés)
+
+```powershell
+# 1. Réinitialiser le circuit
+[System.IO.File]::WriteAllText("$PWD\key.json", '{"id_poste":{"S":"poste_1"}}')
+[System.IO.File]::WriteAllText("$PWD\expr.json", '{":s":{"S":"CRITICAL"}}')
+aws dynamodb update-item --table-name machine_state --key file://key.json --update-expression "SET statut = :s" --expression-attribute-values file://expr.json
+
+# 2. Envoyer 5 events d'un coup
+[System.IO.File]::WriteAllText("$PWD\events_load.json", '[{"Source":"smart-assembly.iot","DetailType":"anomalie.critique","EventBusName":"smart-assembly-events","Detail":"{\"id_poste\":\"poste_1\",\"statut\":\"CRITICAL\",\"regle\":\"vibration.critique\",\"mesures\":{\"vibration\":3.1}}"},{"Source":"smart-assembly.iot","DetailType":"anomalie.critique","EventBusName":"smart-assembly-events","Detail":"{\"id_poste\":\"poste_1\",\"statut\":\"CRITICAL\",\"regle\":\"vibration.critique\",\"mesures\":{\"vibration\":3.2}}"},{"Source":"smart-assembly.iot","DetailType":"anomalie.critique","EventBusName":"smart-assembly-events","Detail":"{\"id_poste\":\"poste_1\",\"statut\":\"CRITICAL\",\"regle\":\"vibration.critique\",\"mesures\":{\"vibration\":3.3}}"},{"Source":"smart-assembly.iot","DetailType":"anomalie.critique","EventBusName":"smart-assembly-events","Detail":"{\"id_poste\":\"poste_1\",\"statut\":\"CRITICAL\",\"regle\":\"vibration.critique\",\"mesures\":{\"vibration\":3.4}}"},{"Source":"smart-assembly.iot","DetailType":"anomalie.critique","EventBusName":"smart-assembly-events","Detail":"{\"id_poste\":\"poste_1\",\"statut\":\"CRITICAL\",\"regle\":\"vibration.critique\",\"mesures\":{\"vibration\":3.5}}"}]')
+aws events put-events --entries file://events_load.json
+
+# 3. Vérifier : LogIntervention doit apparaître UNE seule fois
+aws logs filter-log-events `
+  --log-group-name /aws/lambda/smart-assembly-log-intervention `
+  --start-time 1783969000000 `
+  --limit 10 `
+  --query "events[*].message"
+```
+
+Résultat attendu : 1 log `LogIntervention`, les 4 autres exécutions Step Functions terminent sur `CircuitOpen`.
+
+---
+
 ## Coûts AWS
 
 ### Voir une estimation des coûts du mois en cours

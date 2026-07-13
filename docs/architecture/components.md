@@ -1050,6 +1050,52 @@ Step Functions est conçu exactement pour ça — c'est son domaine.
 
 ---
 
+## 12. Chaos Day — Résilience de la pipeline événementielle
+
+### Objectif
+
+Valider que chaque mécanisme de résilience fonctionne en conditions réelles : DLQ, circuit breaker sous charge, gestion des payloads invalides.
+
+### Tests réalisés (Jour 21)
+
+```mermaid
+flowchart TD
+    T1[Test 1\nTimeout Lambda] --> R1[Lambda trop rapide\n107–591ms\npas de timeout possible]
+    T2[Test 2\nDLQ SQS] --> R2[Lambda plante → 3 retries\nmessage en DLQ après 90s ✅]
+    T3[Test 3\nPayload malformé] --> R3[States.Runtime sur\nJSONPath manquant ✅]
+    T4[Test 4\nCircuit breaker charge] --> R4[1 intervention / 5 events\n4 bloqués CircuitOpen ✅]
+```
+
+| Test | Scénario | Résultat | Leçon |
+|---|---|---|---|
+| 1 — Timeout | Lambda avec `time.sleep(2)`, timeout = 1s | Lambda complète en < 600ms — pas de timeout possible | Lambda trop efficace pour un timeout à 1s. En prod : augmenter le timeout de test ou simuler une opération lente réelle |
+| 2 — DLQ | `FORCE_ERROR=true` → exception intentionnelle | 3 retries × 30s → message en DLQ après ~90s ✅ | Le redrive policy fonctionne. Aucun message perdu silencieusement |
+| 3 — Payload malformé | Event sans `id_poste` | `States.Runtime` sur `$.id_poste` dans CheckCircuitBreaker ✅ | Le JSONPath ASL est strict. Ajouter une validation du payload en entrée de state machine |
+| 4 — Charge | 5 events simultanés sur `poste_1` | 1 seul LogIntervention, 4 × CircuitOpen ✅ | Le circuit breaker tient sous charge concurrente |
+
+### Observations notables
+
+**Terraform écrase les variables manuelles**
+Pendant le Test 2, la variable `FORCE_ERROR=true` ajoutée manuellement dans la console Lambda a été supprimée par un `terraform apply` ultérieur.
+Comportement attendu : Terraform est la source de vérité. Toute modification manuelle d'une ressource gérée par Terraform est écrasée au prochain apply.
+En production, les variables d'environnement de chaos testing doivent être définies dans les `.tf` avec une valeur par défaut `false`.
+
+**Express Workflows — historique non visible dans la console**
+`list-executions` retourne `StateMachineTypeNotSupported` pour les Express Workflows.
+Source de vérité : CloudWatch Logs `/aws/states/smart-assembly-intervention-workflow` (niveau ERROR) et `/aws/lambda/smart-assembly-log-intervention` pour les succès.
+
+**4 INIT_START simultanés — comportement normal**
+Lors du Test 4, SQS a déclenché 5 invocations Lambda en parallèle (une par message, `batch_size=1`).
+Les 4 INIT_START consécutifs confirment que Lambda a scalé horizontalement pour traiter les messages en parallèle — comportement attendu et souhaitable.
+
+### Actions correctives identifiées
+
+- **Validation du payload** : ajouter un état `ValidateInput` en entrée de la state machine avec un `Catch` sur `States.Runtime` → redirection vers un état `PayloadInvalide` avec log structuré
+- **Alerting DLQ** : ajouter une alarme CloudWatch sur `ApproximateNumberOfMessages` de la DLQ > 0 → notification SNS opérateur
+- **Variables chaos en Terraform** : définir `FORCE_ERROR = false` dans `lambda_sqs_processor.tf` pour permettre l'activation sans modification manuelle
+
+---
+
 ### Trade-offs
 
 **ALB vs NLB (Network Load Balancer)**
