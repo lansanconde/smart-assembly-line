@@ -1,0 +1,3 @@
+﻿[
+    "START RequestId: eb4169e1-a314-4156-b901-989198d22409 Version: $LATEST\n",
+    "[StoreMetrics] Event reçu : {\"id_poste\": \"poste_1\", \"vibration\": 3.0, \"temperature\": 94.4, \"pression\": 4.22, \"timestamp\": \"2026-07-14T12:49:25.720640+00:00\"}\n"

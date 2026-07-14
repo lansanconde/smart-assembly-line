@@ -1,0 +1,22 @@
+﻿[
+    "START RequestId: 8314c1be-aa3e-418d-9112-9e2553fdad42 Version: $LATEST\n",
+    "[StoreMetrics] Event reçu : {\"id_poste\": \"poste_1\", \"vibration\": 3.11, \"temperature\": 84.0, \"pression\": 5.1, \"timestamp\": \"2026-07-14T12:50:35.520199+00:00\"}\n",
+    "[StoreMetrics] Stocké → s3://smart-assembly-raw-data-169237360990/2026/07/14/12/poste_1_1784033435.json\n",
+    "END RequestId: 8314c1be-aa3e-418d-9112-9e2553fdad42\n",
+    "REPORT RequestId: 8314c1be-aa3e-418d-9112-9e2553fdad42\tDuration: 235.11 ms\tBilled Duration: 236 ms\tMemory Size: 128 MB\tMax Memory Used: 95 MB\t\n",
+    "START RequestId: 5e919718-071c-48be-936d-90e09a95b4b0 Version: $LATEST\n",
+    "[StoreMetrics] Event reçu : {\"id_poste\": \"poste_1\", \"vibration\": 1.69, \"temperature\": 82.7, \"pression\": 3.59, \"timestamp\": \"2026-07-14T12:50:51.524269+00:00\"}\n",
+    "[StoreMetrics] Stocké → s3://smart-assembly-raw-data-169237360990/2026/07/14/12/poste_1_1784033451.json\n",
+    "END RequestId: 5e919718-071c-48be-936d-90e09a95b4b0\n",
+    "REPORT RequestId: 5e919718-071c-48be-936d-90e09a95b4b0\tDuration: 67.39 ms\tBilled Duration: 68 ms\tMemory Size: 128 MB\tMax Memory Used: 95 MB\t\n",
+    "START RequestId: eb4169e1-a314-4156-b901-989198d22409 Version: $LATEST\n",
+    "[StoreMetrics] Event reçu : {\"id_poste\": \"poste_1\", \"vibration\": 3.0, \"temperature\": 94.4, \"pression\": 4.22, \"timestamp\": \"2026-07-14T12:49:25.720640+00:00\"}\n",
+    "[StoreMetrics] Stocké → s3://smart-assembly-raw-data-169237360990/2026/07/14/12/poste_1_1784033365.json\n",
+    "END RequestId: eb4169e1-a314-4156-b901-989198d22409\n",
+    "REPORT RequestId: eb4169e1-a314-4156-b901-989198d22409\tDuration: 51.42 ms\tBilled Duration: 52 ms\tMemory Size: 128 MB\tMax Memory Used: 95 MB\t\n",
+    "START RequestId: f2ac659c-726a-46ea-8c0a-aa76f58f0a18 Version: $LATEST\n",
+    "[StoreMetrics] Event reçu : {\"id_poste\": \"poste_1\", \"vibration\": 2.42, \"temperature\": 95.5, \"pression\": 3.84, \"timestamp\": \"2026-07-14T12:50:53.524820+00:00\"}\n",
+    "[StoreMetrics] Stocké → s3://smart-assembly-raw-data-169237360990/2026/07/14/12/poste_1_1784033453.json\n",
+    "END RequestId: f2ac659c-726a-46ea-8c0a-aa76f58f0a18\n",
+    "REPORT RequestId: f2ac659c-726a-46ea-8c0a-aa76f58f0a18\tDuration: 60.48 ms\tBilled Duration: 61 ms\tMemory Size: 128 MB\tMax Memory Used: 95 MB\t\n"
+]
