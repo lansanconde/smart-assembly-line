@@ -4,6 +4,8 @@ resource "aws_dynamodb_table" "machine_state" {
   name         = "machine_state"
   billing_mode = "PAY_PER_REQUEST"  # On-demand : facturation à la requête, pas de capacité à provisionner
 
+
+
   # Partition key = id_poste : distribution équitable, pas de hot partition
   hash_key = "id_poste"
 
