@@ -414,7 +414,6 @@ Redshift serait justifié pour des dashboards temps réel avec requêtes complex
 
 ---
 
-
 ## 4. DynamoDB — État temps réel des postes
 
 ### Problème adressé
@@ -559,6 +558,189 @@ Le GSI lit uniquement les items correspondants — coût proportionnel au résul
 À 1 000 postes dont 10 `EN_INTERVENTION` : le GSI lit 10 items, le Scan lit 1 000. Facteur 100.
 
 ---
+
+### Throttling — Jour 23
+
+#### Expérience réalisée
+
+Table passée temporairement en mode **provisionné** avec `write_capacity = 1` WCU/s.
+Deux simulateurs lancés en parallèle → ~1 écriture/seconde chacun → dépassement immédiat de la capacité.
+
+**Résultat observé via CloudWatch `WriteThrottleEvents`** :
+- 83 écritures throttlées en moins de 2 minutes
+- Le SDK AWS a retry automatiquement (backoff exponentiel) → le simulateur n'a pas planté
+- Chaque retry ajoute de la latence invisible côté application
+
+Table remise en **on-demand** (`PAY_PER_REQUEST`) après le lab.
+
+#### Stratégie de retry — comportement du SDK AWS
+
+Quand DynamoDB répond `ProvisionedThroughputExceededException`, le SDK AWS Python (boto3) applique automatiquement :
+
+```
+Tentative 1 → échec → attente 50ms
+Tentative 2 → échec → attente 100ms
+Tentative 3 → échec → attente 200ms (+ jitter aléatoire)
+...jusqu'à max_attempts (défaut : 3)
+```
+
+Au-delà des retries → exception remontée à l'application.
+
+#### Stratégie retenue en production
+
+| Situation | Solution |
+|---|---|
+| Trafic stable et prévisible | Provisionné + auto-scaling (min/max WCU configurés) |
+| Trafic variable / imprévisible | On-demand (notre choix) |
+| Hot partition avérée | Write sharding sur la partition key |
+| Throttling persistant malgré auto-scaling | Revoir le modèle de données (partition key inadaptée) |
+
+#### Auto-scaling Terraform (référence future)
+
+```hcl
+resource "aws_appautoscaling_target" "dynamodb_write" {
+  max_capacity       = 100
+  min_capacity       = 5
+  resource_id        = "table/machine_state"
+  scalable_dimension = "dynamodb:table:WriteCapacityUnits"
+  service_namespace  = "dynamodb"
+}
+
+resource "aws_appautoscaling_policy" "dynamodb_write" {
+  name               = "smart-assembly-dynamo-write-scaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.dynamodb_write.resource_id
+  scalable_dimension = aws_appautoscaling_target.dynamodb_write.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.dynamodb_write.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "DynamoDBWriteCapacityUtilization"
+    }
+    target_value = 70.0  # Scale quand utilisation > 70% de la capacité
+  }
+}
+```
+
+Non déployé ici (on-demand suffit à ce volume), documenté pour la montée en charge.
+
+---
+
+## 4. Kinesis Data Streams — Flux haute fréquence
+
+### Problème adressé
+
+Le pipeline actuel invoque Lambda **à chaque message capteur** individuellement.
+À 1 poste → 1 invocation/2s — acceptable.
+À 1 000 postes → 500 invocations Lambda/seconde — cold starts fréquents, coût élevé, limite de concurrence atteinte.
+
+Kinesis résout ce problème en jouant le rôle de **tampon de flux continu** : les capteurs publient en continu, Lambda consomme par **batch** (100 messages en une invocation au lieu de 100 invocations séparées).
+
+```mermaid
+flowchart LR
+    subgraph AVANT["Sans Kinesis (actuel)"]
+        C1[1 000 capteurs] -->|"1 000 invocations/s"| L1[Lambda]
+    end
+
+    subgraph APRES["Avec Kinesis"]
+        C2[1 000 capteurs] -->|"1 000 enregistrements/s"| K[Kinesis\n1 shard]
+        K -->|"10 invocations/s\n100 msgs/batch"| L2[Lambda]
+    end
+```
+
+### Architecture
+
+```mermaid
+flowchart TD
+    SIM[Simulateur Python\nIoT Core] -->|PutRecord\npartition_key=id_poste| KDS
+
+    subgraph KDS["Kinesis Data Stream — smart-assembly-sensors"]
+        SH0["Shard 0\n1 000 rec/s · 1 MB/s"]
+    end
+
+    KDS -->|"Event Source Mapping\nbatch_size=100"| LAMBDA[Lambda\nDetectAnomaly]
+    LAMBDA -->|PutItem| DDB[DynamoDB]
+    LAMBDA -->|PutObject| S3[S3 Data Lake]
+    LAMBDA -->|PutEvents| EB[EventBridge]
+```
+
+### Concepts clés
+
+**Shard** = unité de capacité du stream.
+
+| Limite | Par shard |
+|---|---|
+| Écriture | 1 000 enregistrements/s ou 1 MB/s |
+| Lecture | 2 000 enregistrements/s ou 2 MB/s |
+| Consommateurs simultanés | 5 (standard) / illimité (Enhanced Fan-Out) |
+
+**Calcul du nombre de shards :**
+```
+shard_count = max(
+  ceil(records_per_second / 1000),
+  ceil(mb_per_second / 1)
+)
+```
+
+Pour 1 000 capteurs à 1 mesure/s et ~200 bytes/message → **1 shard suffit**.
+Pour 5 000 capteurs → 5 shards.
+
+**Partition key** = détermine sur quel shard va l'enregistrement (hash Murmur3).
+- Bonne : `id_poste` → distribution équitable
+- Mauvaise : `"fixed"` → tout sur le même shard → hot shard
+
+**Rétention** = durée pendant laquelle les données restent dans Kinesis (24h à 365 jours).
+Contrairement à SQS, **le message n'est pas supprimé après lecture** — plusieurs consommateurs peuvent relire le même flux indépendamment.
+
+**Iterator types** :
+
+| Type | Comportement |
+|---|---|
+| `TRIM_HORIZON` | Relire depuis le tout début du flux |
+| `LATEST` | Ne lire que les nouveaux messages |
+| `AT_TIMESTAMP` | Relire depuis un timestamp précis (replay) |
+
+### Décisions de conception justifiées
+
+**1 shard — dimensionnement actuel**
+Volume actuel : 3 postes simulés × 1 mesure/2s = 1,5 enregistrements/seconde.
+Largement en dessous du 1 000 rec/s d'un shard. Le shard est choisi pour la structure, pas le volume.
+En production à 1 000 postes : 1 shard reste suffisant. À 5 000 postes : `shard_count = 5`.
+
+**Rétention 24h**
+Une anomalie critique non traitée dans les 24h est périmée — le technicien n'interviendra pas sur une alerte vieille d'un jour.
+24h est suffisant pour absorber une indisponibilité Lambda et rejouer le flux.
+
+**Chiffrement KMS**
+Même clé KMS que DynamoDB et S3 — cohérence du modèle de sécurité.
+Les données capteurs en transit dans Kinesis sont chiffrées au repos.
+
+**Mode PROVISIONED vs ON_DEMAND**
+`PROVISIONED` avec `shard_count = 1` : capacité fixe, coût prévisible (~$0.015/h par shard).
+`ON_DEMAND` : Kinesis scale automatiquement, facturation à l'utilisation.
+Choix : `PROVISIONED` car le volume est connu et stable — le coût est 2-3× moins cher qu'`ON_DEMAND` à débit constant.
+
+### Trade-offs
+
+**Kinesis vs SQS**
+
+| Critère | Kinesis | SQS |
+|---|---|---|
+| Modèle | Flux continu, multi-consommateurs | File point-à-point |
+| Rétention | 24h – 365 jours | 4 jours (max 14j) |
+| Ordre | Garanti par shard | Non garanti (Standard) |
+| Replay | Oui (AT_TIMESTAMP) | Non |
+| Throughput | 1 000 rec/s/shard | Illimité |
+| Usage idéal | Flux haute fréquence, analytics | Découplage de services |
+
+Pour notre pipeline de métriques capteurs haute fréquence → **Kinesis**.
+Pour le pipeline d'intervention (anomalie → SQS → Step Functions) → **SQS** (déjà en place).
+
+**Kinesis vs IoT Core direct → Lambda**
+IoT Core peut invoquer Lambda directement via une Rules Engine rule.
+C'est notre pipeline actuel — simple, efficace à faible volume.
+Kinesis s'intercale pour absorber le volume à grande échelle et permettre le replay.
+Les deux coexistent : IoT Core → Kinesis → Lambda (nouveau pipeline haute fréquence).
 
 ## 4. S3 — Data Lake
 

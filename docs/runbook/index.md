@@ -202,6 +202,54 @@ aws dynamodb delete-item --table-name machine_state --key file://key.json
 aws dynamodb scan --table-name machine_state
 ```
 
+### Vérifier le mode de facturation de la table
+```powershell
+aws dynamodb describe-table --table-name machine_state `
+  --query "Table.BillingModeSummary.BillingMode"
+```
+
+### Observer les événements de throttling (CloudWatch)
+```powershell
+aws cloudwatch get-metric-statistics `
+  --namespace AWS/DynamoDB `
+  --metric-name WriteThrottleEvents `
+  --dimensions Name=TableName,Value=machine_state `
+  --start-time 1784000000 `
+  --end-time 1784010000 `
+  --period 60 `
+  --statistics Sum
+```
+
+### Passer en provisionné (lab chaos uniquement — à remettre en on-demand après)
+```hcl
+# Dans dynamodb.tf — temporaire pour tester le throttling
+billing_mode   = "PROVISIONED"
+read_capacity  = 1
+write_capacity = 1
+```
+
+!!! warning "Toujours remettre en PAY_PER_REQUEST après le lab"
+    Le mode provisionné avec `write_capacity = 1` est volontairement sous-dimensionné.
+    Après le test, remettre `billing_mode = "PAY_PER_REQUEST"` et supprimer `read_capacity` / `write_capacity`.
+
+### Requêter par statut via le GSI statut-index
+```powershell
+[System.IO.File]::WriteAllText("$PWD\expr_gsi.json", '{":s":{"S":"EN_INTERVENTION"}}')
+aws dynamodb query `
+  --table-name machine_state `
+  --index-name statut-index `
+  --key-condition-expression "statut = :s" `
+  --expression-attribute-values file://expr_gsi.json `
+  --query "Items[*].id_poste"
+```
+
+Remplace `EN_INTERVENTION` par `OK`, `WARN` ou `CRITICAL` selon le besoin.
+
+!!! tip "GSI — consistance éventuelle"
+    Le GSI `statut-index` est mis à jour de façon asynchrone après chaque écriture sur la table principale.
+    Un poste passé `EN_INTERVENTION` dans la dernière seconde peut ne pas encore apparaître dans le résultat.
+    Pour une lecture forte consistance, utiliser `GetItem` sur la table principale avec `id_poste`.
+
 ### Vérifier le PITR (Point-in-Time Recovery)
 ```bash
 aws dynamodb describe-continuous-backups --table-name machine_state   --query "ContinuousBackupsDescription.PointInTimeRecoveryDescription"
@@ -343,6 +391,59 @@ aws dynamodb get-item --table-name machine_state --key file://key.json --query "
 # 6. Vérifier le log d'intervention dans CloudWatch
 # /aws/lambda/smart-assembly-log-intervention
 ```
+
+---
+
+## Kinesis
+
+### Vérifier l'état du stream
+```powershell
+aws kinesis describe-stream-summary --stream-name smart-assembly-sensors `
+  --query "StreamDescriptionSummary.{Statut:StreamStatus,Shards:OpenShardCount,Retention:RetentionPeriodHours}"
+```
+
+### Publier un enregistrement de test
+```powershell
+[System.IO.File]::WriteAllText("$PWD\kinesis_record.json", '{"id_poste":"poste_1","vibration":2.5,"temperature":85.0,"pression":4.1,"timestamp":"2026-07-14T10:00:00Z"}')
+aws kinesis put-record `
+  --stream-name smart-assembly-sensors `
+  --partition-key poste_1 `
+  --data fileb://kinesis_record.json
+```
+
+### Lire les enregistrements d'un shard
+```powershell
+# 1. Obtenir l'iterator du shard (TRIM_HORIZON = depuis le début)
+$ITER = (aws kinesis get-shard-iterator `
+  --stream-name smart-assembly-sensors `
+  --shard-id shardId-000000000000 `
+  --shard-iterator-type TRIM_HORIZON `
+  --query ShardIterator --output text)
+
+# 2. Lire les enregistrements
+aws kinesis get-records --shard-iterator $ITER --limit 10
+```
+
+### Voir les métriques de débit (CloudWatch)
+```powershell
+aws cloudwatch get-metric-statistics `
+  --namespace AWS/Kinesis `
+  --metric-name IncomingRecords `
+  --dimensions Name=StreamName,Value=smart-assembly-sensors `
+  --start-time 1784000000000 `
+  --end-time 1784010000000 `
+  --period 60 `
+  --statistics Sum
+```
+
+!!! tip "Dimensionnement des shards"
+    1 shard = 1 000 enregistrements/seconde en écriture.
+    Pour N capteurs à 1 mesure/seconde : `shard_count = ceil(N / 1000)`.
+    À 1 000 capteurs → 1 shard. À 5 000 capteurs → 5 shards.
+
+!!! warning "Throttling Kinesis"
+    Si le stream est saturé, Kinesis retourne `ProvisionedThroughputExceededException`.
+    Solution : augmenter `shard_count` ou passer en mode `ON_DEMAND` (Kinesis scale automatiquement).
 
 ---
 
