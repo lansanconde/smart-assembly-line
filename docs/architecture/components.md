@@ -742,9 +742,14 @@ C'est notre pipeline actuel — simple, efficace à faible volume.
 Kinesis s'intercale pour absorber le volume à grande échelle et permettre le replay.
 Les deux coexistent : IoT Core → Kinesis → Lambda (nouveau pipeline haute fréquence).
 
-## 4. S3 — Data Lake
+## 4. S3 — Data Lake & Eventual Consistency
+
+### Problème adressé
 
 S3 stocke tous les messages bruts pour analyse historique, audit réglementaire et futur ML.
+Contrairement à DynamoDB qui contient l'**état courant**, S3 est l'**historique immuable** — chaque mesure capteur y est conservée indéfiniment selon la politique de rétention.
+
+### Architecture
 
 ```mermaid
 flowchart LR
@@ -756,13 +761,68 @@ flowchart LR
         KMS[Chiffrement SSE-KMS]
         LC[Lifecycle Policy\nStandard → IA 30j\nIA → Glacier 90j]
     end
+
+    S3 -->|SQL| ATHENA[Amazon Athena\nRequêtes analytiques]
 ```
 
-**Décisions de conception :**
+### Politique de rétention (lifecycle confirmée Jour 25)
 
-- **Partitionnement par date** : `s3://assembly-line-raw-data/2026/07/05/14/poste-1_1234567890.json`. Permet à Athena de lire uniquement la partition pertinente sans scanner tout le bucket.
-- **Versioning** : protection contre les suppressions accidentelles. Obligatoire en contexte réglementaire aérospatial.
-- **Lifecycle** : les données > 30 jours passent en S3-IA (moins cher, accès rare). > 90 jours en Glacier (archivage long terme). Optimisation coût sans perte de données.
+```mermaid
+flowchart LR
+    J0["J+0\nDonnées fraîches\nS3 Standard\n$$$"] -->|30 jours| J30
+    J30["J+30\nHistorique récent\nS3 Standard-IA\n$$"] -->|60 jours| J90
+    J90["J+90\nArchivage réglementaire\nS3 Glacier\n$"]
+```
+
+| Période | Classe | Coût relatif | Usage |
+|---|---|---|---|
+| 0 – 30 jours | Standard | $$$ | Monitoring, analytics temps réel |
+| 30 – 90 jours | Standard-IA | $$ | Historique récent, accès rare |
+| > 90 jours | Glacier | $ | Audit réglementaire aérospatial |
+
+### Cohérence éventuelle — DynamoDB vs S3 (Jour 25)
+
+Notre architecture maintient **deux stores distincts** mis à jour en parallèle par des Lambdas indépendantes :
+
+```mermaid
+flowchart TD
+    MQTT[Message capteur\nvibration=3.1] --> IOT[IoT Core]
+    IOT --> L1[Lambda\nAnalyzeVibration] & L2[Lambda\nStoreMetrics]
+    L1 -->|"T+10ms ✅"| DDB[DynamoDB\nstatut=CRITICAL]
+    L2 -->|"T+25ms ✅\nou T+5s si retry"| S3[S3\nfichier JSON]
+```
+
+**Fenêtre d'incohérence possible** : entre le moment où DynamoDB est mis à jour et celui où S3 reçoit le fichier (quelques ms en nominal, quelques secondes en cas de retry Lambda).
+
+**Conséquences pratiques :**
+
+| Requête | Source | Comportement attendu |
+|---|---|---|
+| Dashboard statut poste | DynamoDB | Toujours à jour (< 10ms) |
+| Athena — dernières 10 secondes | S3 | Peut manquer les mesures les plus récentes |
+| Audit réglementaire | S3 | Toujours complet — S3 est la source de vérité finale |
+
+**Délai de cohérence acceptable** : quelques secondes pour le monitoring. Pour l'audit → S3 converge toujours, même avec retard.
+
+**Règle de conception** : ne jamais utiliser S3 comme source de vérité pour des décisions temps réel. DynamoDB pour l'état courant, S3 pour l'historique.
+
+### Décisions de conception justifiées
+
+**Partitionnement par date** : `s3://assembly-line-raw-data/2026/07/05/14/poste-1_1234567890.json`. Permet à Athena de lire uniquement la partition pertinente sans scanner tout le bucket. Sans partitionnement, une requête sur une heure de données lirait le bucket entier.
+
+**Versioning** : protection contre les suppressions accidentelles. Obligatoire en contexte réglementaire aérospatial — une suppression crée un `DeleteMarker`, pas une destruction définitive.
+
+**Lifecycle** : les données > 30 jours passent en S3-IA (40% moins cher, accès rare). > 90 jours en Glacier (80% moins cher). Optimisation coût sans perte de données.
+
+**Block Public Access** : aucun objet du data lake ne peut être exposé publiquement, même par erreur de configuration — verrou au niveau bucket.
+
+### Trade-offs
+
+**S3 vs DynamoDB pour l'historique**
+DynamoDB pourrait stocker l'historique avec une sort key `timestamp`, mais le coût explose à grande échelle (facturation à la lecture/écriture par item). S3 facture au stockage et à la requête Athena — largement plus économique pour des volumes d'archives.
+
+**Athena vs Redshift**
+Athena est serverless : pas de cluster à gérer, paiement à la requête. Redshift serait justifié pour des dashboards temps réel avec requêtes complexes en continu — pas le besoin dominant ici.
 
 ---
 
