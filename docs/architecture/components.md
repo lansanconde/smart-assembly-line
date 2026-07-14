@@ -414,6 +414,7 @@ Redshift serait justifié pour des dashboards temps réel avec requêtes complex
 
 ---
 
+
 ## 4. DynamoDB — État temps réel des postes
 
 ### Problème adressé
@@ -497,6 +498,49 @@ Une sort key permettrait de stocker plusieurs items par poste (ex : historique d
 Ce n'est pas le choix retenu — on garde DynamoDB simple et rapide, S3 pour l'historique.
 Si le besoin évolue vers un historique court terme (dernières 24h) dans DynamoDB, on ajoutera une GSI avec `timestamp` comme sort key.
 
+### GSI — Global Secondary Index `statut-index` (Jour 22)
+
+**Problème adressé** : requêter tous les postes en `EN_INTERVENTION` sans scanner toute la table.
+
+Avec la partition key `id_poste` seule, une requête "tous les postes CRITICAL" nécessite un `Scan` complet — coûteux et non scalable à 100 000 postes.
+
+```mermaid
+flowchart LR
+    subgraph TABLE["Table machine_state"]
+        PK["Partition Key\nid_poste"]
+    end
+
+    subgraph GSI["GSI — statut-index"]
+        GPK["Partition Key\nstatut"]
+        ITEMS["Items projetés\nALL attributes"]
+    end
+
+    TABLE -->|"réplication automatique\n(éventuelle consistance)"| GSI
+
+    Q1["GetItem\nid_poste=poste_1"] -->|"< 10ms"| TABLE
+    Q2["Query\nstatut=EN_INTERVENTION"] -->|"< 10ms"| GSI
+```
+
+**Comportement du GSI :**
+
+| Requête | Sans GSI | Avec GSI |
+|---|---|---|
+| `GetItem id_poste=poste_1` | Partition key → 1 lecture | — |
+| `Query statut=EN_INTERVENTION` | `Scan` toute la table | `Query` sur GSI → rapide |
+| Coût à 100 000 postes | O(n) lectures | O(k) où k = postes EN_INTERVENTION |
+
+**Consistance éventuelle du GSI**
+Le GSI est mis à jour de façon asynchrone après chaque `PutItem`/`UpdateItem` sur la table principale.
+Délai typique : quelques millisecondes à quelques secondes sous charge.
+**Impact** : une requête sur `statut-index` peut rater un poste passé `EN_INTERVENTION` dans la dernière seconde.
+**Acceptable** pour une vue de supervision — pas acceptable pour un système de facturation ou de sécurité critique.
+
+**Hot partition assumée et mitigée**
+`statut` n'a que 3 valeurs (`OK`, `WARN`, `CRITICAL`, `EN_INTERVENTION`) — faible cardinalité.
+En pic, toutes les écritures `EN_INTERVENTION` convergent sur la même partition GSI.
+Mitigation si le volume l'exige : **write sharding** — `statut#0`, `statut#1`... pour distribuer la charge, puis `UNION` des résultats côté application.
+Non implémenté ici (volume actuel < 100 postes), documenté pour l'entretien.
+
 ### Trade-offs
 
 **DynamoDB vs RDS**
@@ -508,6 +552,11 @@ Si un module de reporting réglementaire avec jointures complexes émerge, RDS r
 Redis serait encore plus rapide (< 1ms) mais volatil sans persistance configurée.
 DynamoDB est durable par défaut — les données survivent à un redémarrage, Redis non (sans AOF/RDB).
 Pour un système critique industriel, la durabilité prime sur la microseconde de latence gagnée.
+
+**GSI `statut-index` vs Scan**
+Un `Scan` avec `FilterExpression = statut = EN_INTERVENTION` est plus simple à implémenter mais lit toute la table — coût proportionnel au nombre total de postes.
+Le GSI lit uniquement les items correspondants — coût proportionnel au résultat.
+À 1 000 postes dont 10 `EN_INTERVENTION` : le GSI lit 10 items, le Scan lit 1 000. Facteur 100.
 
 ---
 

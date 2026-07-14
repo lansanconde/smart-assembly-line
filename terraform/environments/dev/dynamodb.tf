@@ -12,6 +12,17 @@ resource "aws_dynamodb_table" "machine_state" {
     type = "S"  # S = String
   }
 
+  attribute {
+    name = "statut"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "statut-index"
+    hash_key        = "statut"
+    projection_type = "ALL"
+  }
+
   # Chiffrement at-rest avec clé KMS gérée par AWS
   server_side_encryption {
     enabled = true
@@ -25,3 +36,4 @@ resource "aws_dynamodb_table" "machine_state" {
 
   tags = { Name = "smart-assembly-machine-state" }
 }
+
