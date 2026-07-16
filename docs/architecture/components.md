@@ -128,6 +128,94 @@ Le Shadow maintient l'état du device même quand il est déconnecté.
 SELECT * FROM 'assembly-line/+/metrics'
 ```
 Le `+` est un wildcard MQTT — une seule règle capture tous les postes.
+
+---
+
+### Device Shadow — approfondissement
+
+#### Pourquoi le Device Shadow existe
+
+Un device IoT n'est pas toujours connecté : réseau instable en usine, maintenance, redémarrage firmware, coupure de courant. Sans Shadow, toute commande envoyée pendant la déconnexion est perdue. Le Shadow résout ce problème en jouant le rôle de **miroir persistant côté cloud**.
+
+#### Structure du document Shadow
+
+```json
+{
+  "state": {
+    "reported": {
+      "firmware_version": "1.2.0",
+      "vibration": 2.5,
+      "statut": "CRITICAL",
+      "connected": true
+    },
+    "desired": {
+      "firmware_version": "1.3.0",
+      "seuil_vibration": 2.0,
+      "mode": "usinage_titane"
+    },
+    "delta": {
+      "firmware_version": "1.3.0",
+      "seuil_vibration": 2.0,
+      "mode": "usinage_titane"
+    }
+  }
+}
+```
+
+| Champ | Écrit par | Signification |
+|---|---|---|
+| `reported` | Le device | Dernier état connu du device |
+| `desired` | Le cloud / API / opérateur | Ce qu'on veut que le device fasse |
+| `delta` | IoT Core (automatique) | Différence entre `desired` et `reported` — le device doit l'appliquer |
+
+#### Flow de synchronisation
+
+```mermaid
+sequenceDiagram
+    participant API as API / Opérateur
+    participant SHADOW as Device Shadow
+    participant DEVICE as Poste d'assemblage
+
+    API->>SHADOW: PUT desired.seuil_vibration = 2.0
+    Note over SHADOW: delta calculé automatiquement
+    DEVICE->>SHADOW: reconnexion après coupure
+    SHADOW->>DEVICE: delta → seuil_vibration: 2.0
+    DEVICE->>SHADOW: PUT reported.seuil_vibration = 2.0
+    Note over SHADOW: delta = vide — synchronisé
+```
+
+#### Cas d'usage industriels généraux
+
+| Secteur | Usage Shadow |
+|---|---|
+| **Domotique** | Thermostat offline → `desired.temperature = 21°C` attendu → appliqué à la reconnexion |
+| **Véhicules connectés** | `desired.limite_vitesse = 90` poussé hors réseau → appliqué en zone couverte |
+| **Agriculture** | Irrigation programmée pendant la nuit (seule fenêtre satellite disponible) |
+| **CNC industriel** | Paramètres d'usinage changés entre deux cycles sans arrêter la machine |
+| **OTA firmware** | `desired.firmware_version = "1.3.0"` → device télécharge depuis S3, installe, confirme via `reported` |
+
+#### OTA (Over-The-Air) via Device Shadow
+
+Le Shadow est le mécanisme fondamental des mises à jour firmware à distance. AWS IoT Jobs s'appuie dessus avec des fonctionnalités supplémentaires (déploiement progressif, rollback automatique).
+
+```mermaid
+flowchart TD
+    OPS[Opérateur / CI-CD] -->|desired.firmware = 1.3.0| SH[Device Shadow]
+    SH -->|delta| DEV[Device connecté]
+    DEV -->|télécharge| S3[S3 — binaire firmware]
+    DEV -->|installe + redémarre| DEV
+    DEV -->|reported.firmware = 1.3.0| SH
+    SH -->|delta vide = confirmé| OPS
+```
+
+#### Application dans ce projet
+
+| Besoin | Shadow `desired` | Bénéfice |
+|---|---|---|
+| Changer les seuils d'alerte par poste | `seuil_vibration`, `seuil_temperature` | Pas de redéploiement Lambda — config à chaud |
+| Afficher l'état offline d'un poste | Lecture de `reported` | Dashboard toujours informé même si le poste est déconnecté |
+| Arrêt d'urgence à distance | `arret_urgence: true` | Commande persistante — appliquée à la reconnexion même si envoyée pendant une coupure |
+| OTA seuils de détection | `firmware_version`, `modele_ml_version` | Mise à jour du modèle TinyML embarqué sans intervention physique |
 Le Rules Engine évalue la règle et déclenche les Lambdas cibles sans qu'on code le routage — c'est AWS qui gère la fanout.
 
 **IoT Policy — least privilege sur les topics**
