@@ -1,0 +1,42 @@
+# ============================================================
+# Edge Computing — Mosquitto + Analyzer (Docker = edge device)
+#
+# Architecture :
+#   Host : publish_vibration_edge.py → localhost:1883
+#   Docker (edge device) :
+#     ├── mosquitto  ← broker MQTT local
+#     └── analyzer   ← filtre + transfère WARN/CRITICAL → IoT Core
+# ============================================================
+
+services:
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: smart-assembly-broker
+    ports:
+      - "1885:1883"   # exposé au host pour que le simulateur puisse publier
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-assembly-analyzer
+    environment:
+      # "mosquitto" = nom du service Docker, résolu automatiquement dans le réseau interne
+      - LOCAL_BROKER=mosquitto
+      - LOCAL_PORT=1883
+      - PYTHONUNBUFFERED=1 
+    volumes:
+      # Certs IoT Core montés en lecture seule (pour la connexion cloud)
+      - ./certs:/app/certs:ro
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"

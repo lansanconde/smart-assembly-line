@@ -1,0 +1,21 @@
+---
+# Greengrass Nucleus — configuration manuelle
+# Core Device : greengrass-core-poste
+# Région      : eu-west-3 (Paris)
+# Lab Jour 30 : Docker sur PC local
+
+system:
+  certificateFilePath: "/greengrass/certs/device.pem.crt"
+  privateKeyPath:      "/greengrass/certs/private.pem.key"
+  rootCaPath:          "/greengrass/certs/AmazonRootCA1.pem"
+  rootpath:            "/greengrass"
+  thingName:           "greengrass-core-poste"
+
+services:
+  aws.greengrass.Nucleus:
+    componentType: "NUCLEUS"
+    configuration:
+      awsRegion:       "eu-west-3"
+      iotRoleAlias:    "GreengrassV2TokenExchangeRoleAlias"
+      iotDataEndpoint: "aood9gt2q2oe5-ats.iot.eu-west-3.amazonaws.com"
+      iotCredEndpoint: "c1evq5f7gctasg.credentials.iot.eu-west-3.amazonaws.com"

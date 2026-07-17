@@ -131,7 +131,7 @@ Le `+` est un wildcard MQTT — une seule règle capture tous les postes.
 
 ---
 
-### Device Shadow — approfondissement
+### Device Shadow — approfondissement (Jour 29)
 
 #### Pourquoi le Device Shadow existe
 
@@ -485,7 +485,7 @@ Le `Block Public Access` est un verrou au niveau bucket — il écrase toute ACL
 ### Tables des classes de stockage
 
 | Classe | Délai | Usage | Coût relatif |
-|---|---|---|---|
+|-|---|---|---|---|
 | S3 Standard | 0 – 30 jours | Données fraîches, accès fréquent | $$$ |
 | S3 Standard-IA | 30 – 90 jours | Historique récent, accès rare | $$ |
 | S3 Glacier | > 90 jours | Archivage réglementaire | $ |
@@ -502,131 +502,174 @@ Redshift serait justifié pour des dashboards temps réel avec requêtes complex
 
 ---
 
-## 4. DynamoDB — État temps réel des postes
+## 5. AWS IoT Greengrass v2 — Edge Computing (Jour 30)
 
 ### Problème adressé
 
-Le système a besoin d'un accès **instantané** à l'état courant de chaque poste : statut, dernière mesure, dernière anomalie.
-S3 n'est pas adapté — il est conçu pour stocker, pas pour répondre en millisecondes à une requête par clé.
-RDS (PostgreSQL/MySQL) peut le faire, mais introduit un schéma rigide, un serveur à maintenir, et une latence plus variable.
+Sans Greengrass, chaque mesure capteur fait un aller-retour cloud :
 
-DynamoDB répond à ce besoin précis : **accès par clé primaire en < 10ms**, scalabilité automatique, zéro serveur à opérer.
+```
+Capteur → IoT Core (cloud) → Lambda → DynamoDB
+```
 
-### Architecture
+À 1 mesure/2s × 3 postes = **1 440 messages/heure** remontent vers le cloud, y compris les mesures `OK` qui n'ont aucune valeur pour le monitoring.
+
+Trois problèmes concrets :
+- **Latence** : 50–200 ms aller-retour cloud pour chaque décision. Insuffisant pour un arrêt d'urgence machine.
+- **Coût** : facturation IoT Core à chaque message, même les mesures normales.
+- **Résilience** : si le réseau tombe, plus aucune décision locale n'est possible.
+
+Greengrass résout les trois en déplaçant l'intelligence au plus près du capteur.
+
+### Architecture Greengrass — Docker sur PC local
 
 ```mermaid
-flowchart LR
-    LAMBDA[Lambda
-AnalyzeVibration] -->|PutItem| DDB
-
-    subgraph DDB["DynamoDB — machine_state"]
-        direction TB
-        PK["Partition Key
-id_poste"]
-        ATTRS["Attributs
-statut · vibration_last
-temperature_last · pression_last
-timestamp_last · anomalie_type
-anomalies_count"]
+flowchart TD
+    subgraph PC["PC Local (Windows) — Docker"]
+        subgraph CONTAINER["Conteneur Greengrass"]
+            GG[Greengrass Nucleus\nruntime]
+            COMP[Component\nsmart-assembly-analyzer\nPython]
+            SHADOW_LOCAL[Shadow Manager\nsync local]
+            STREAM[Stream Manager\nbuffer hors-ligne]
+        end
+        SIM[publish_vibration.py\nsimulateur capteur]
+        SIM -->|MQTT local :8883| GG
+        GG --> COMP
+        COMP -->|analyse locale| SHADOW_LOCAL
+        COMP -->|WARN/CRITICAL seulement| STREAM
     end
 
-    API[Spring Boot API] -->|GetItem
-id_poste=poste-1| DDB
-    DDB -->|État courant| API
+    subgraph CLOUD["AWS Cloud — eu-west-3"]
+        IOT[IoT Core\nendpoint MQTT]
+        LAMBDA[Lambda]
+        DDB[DynamoDB]
+        EB[EventBridge]
+    end
+
+    STREAM -->|MQTT persistant| IOT
+    SHADOW_LOCAL <-->|MQTT sync| IOT
+    IOT --> LAMBDA
+    LAMBDA --> DDB
+    LAMBDA --> EB
 ```
 
-### Modèle de données
+> **Note région** : le service Greengrass (déploiements cloud) n'est pas disponible en `eu-west-3`.
+> Dans ce lab, on utilise le déploiement **local** via `greengrass-cli` — aucune dépendance au service Greengrass cloud.
+> L'endpoint IoT Core reste `eu-west-3` pour la connexion MQTT des données.
 
-```mermaid
-erDiagram
-    MACHINE_STATE {
-        string id_poste PK
-        string statut
-        float  vibration_last
-        float  temperature_last
-        float  pression_last
-        string timestamp_last
-        string anomalie_type
-        int    anomalies_count
-    }
+### Pourquoi MQTT et non HTTPS pour les données ?
+
+Greengrass Nucleus maintient une **connexion MQTT persistante** vers IoT Core. Quand un component publie un message :
+
+```
+Component Python
+    → publie sur topic local (Greengrass broker interne)
+    → Nucleus forward via connexion MQTT persistante
+    → IoT Core eu-west-3
+    → Rules Engine → Lambda
 ```
 
-| Attribut | Type | Description |
+HTTPS n'intervient que pour le téléchargement des artefacts S3 lors de l'installation d'un component — jamais pour les données temps réel. MQTT est maintenu en permanence, ce qui évite l'overhead de l'établissement de connexion à chaque message (économie de 30–50 ms par rapport à HTTPS).
+
+### Les 4 concepts fondamentaux
+
+**1. Core Device**
+L'appareil qui exécute Greengrass Nucleus. Dans ce lab : un conteneur Docker sur le PC local. S'enregistre dans IoT Core comme un Thing de type `AWS::GreengrassV2::CoreDevice`.
+
+**2. Component**
+Unité de déploiement. Peut être un script Python, un conteneur Docker, ou un composant AWS prédéfini. Chaque component a un cycle de vie : `install → run → shutdown`.
+
+**3. Recipe**
+Fichier YAML qui décrit un component : version, dépendances, artefacts, commandes de cycle de vie.
+
+**4. Deployment**
+Dans ce lab : déploiement **local** via `greengrass-cli` (pas de service Greengrass cloud requis). En production sur une région supportée : déploiement cloud vers un ou plusieurs Core Devices.
+
+### Greengrass vs IoT Core pur
+
+| Critère | IoT Core seul | IoT Core + Greengrass |
 |---|---|---|
-| `id_poste` | String (PK) | Identifiant unique du poste — `poste-1`, `poste-2`... |
-| `statut` | String | `OK`, `WARN`, `CRITICAL` |
-| `vibration_last` | Number | Dernière mesure vibration (m/s²) |
-| `temperature_last` | Number | Dernière mesure température (°C) |
-| `pression_last` | Number | Dernière mesure pression (bar) |
-| `timestamp_last` | String | ISO 8601 — horodatage de la dernière mesure |
-| `anomalie_type` | String | Type d'anomalie détectée (`VIBRATION`, `TEMP`, `null`) |
-| `anomalies_count` | Number | Compteur d'anomalies depuis la dernière remise à zéro |
+| Latence décision | 50–200 ms (aller-retour cloud) | < 5 ms (local) |
+| Dépendance réseau | Totale | Optionnelle |
+| Coût bande passante | Élevé (toutes les mesures) | Faible (WARN/CRITICAL seulement) |
+| Résilience hors-ligne | Aucune | Stream Manager bufferise |
+| ML inference au edge | Non | Oui (TinyML, ONNX) |
+| Protocole cloud | MQTT | MQTT (connexion persistante Nucleus) |
 
-### Décisions de conception justifiées
+### Application au projet
 
-**Partition key = `id_poste` — pas de hot partition**
-Une hot partition se produit quand trop de requêtes ciblent la même clé de partition simultanément.
-Ici chaque poste est indépendant et sollicité à fréquence identique (une mesure toutes les 2 secondes par poste).
-La charge est distribuée équitablement sur toutes les partitions — pas de risque de throttling.
-
-**On-demand billing — pas de capacité provisionnée**
-Le trafic varie selon les shifts : intense en journée, quasi nul la nuit.
-En capacité provisionnée, on paie les unités réservées même quand la table est idle.
-On-demand facture à la requête — optimal pour un trafic variable et imprévisible.
-
-**Un seul item par poste — écrasement à chaque message**
-DynamoDB n'est pas un historique — c'est une **vue courante**.
-Chaque `PutItem` écrase l'item existant avec l'état le plus récent.
-L'historique complet est dans S3, interrogeable via Athena.
-Ce partage de responsabilité (état actuel → DynamoDB, historique → S3) est un pattern fondamental des architectures event-driven.
-
-**Pas de sort key sur cette table**
-Une sort key permettrait de stocker plusieurs items par poste (ex : historique dans DynamoDB).
-Ce n'est pas le choix retenu — on garde DynamoDB simple et rapide, S3 pour l'historique.
-Si le besoin évolue vers un historique court terme (dernières 24h) dans DynamoDB, on ajoutera une GSI avec `timestamp` comme sort key.
-
-### GSI — Global Secondary Index `statut-index` (Jour 22)
-
-**Problème adressé** : requêter tous les postes en `EN_INTERVENTION` sans scanner toute la table.
-
-Avec la partition key `id_poste` seule, une requête "tous les postes CRITICAL" nécessite un `Scan` complet — coûteux et non scalable à 100 000 postes.
-
-```mermaid
-flowchart LR
-    subgraph TABLE["Table machine_state"]
-        PK["Partition Key\nid_poste"]
-    end
-
-    subgraph GSI["GSI — statut-index"]
-        GPK["Partition Key\nstatut"]
-        ITEMS["Items projetés\nALL attributes"]
-    end
-
-    TABLE -->|"réplication automatique\n(éventuelle consistance)"| GSI
-
-    Q1["GetItem\nid_poste=poste_1"] -->|"< 10ms"| TABLE
-    Q2["Query\nstatut=EN_INTERVENTION"] -->|"< 10ms"| GSI
+**Flux actuel (sans Greengrass) :**
+```
+Capteur → IoT Core → Lambda → DynamoDB/EventBridge
+1 440 messages/heure vers le cloud (OK + WARN + CRITICAL)
 ```
 
-**Comportement du GSI :**
+**Flux cible (avec Greengrass sur Docker local) :**
+```
+Capteur → Greengrass Component (analyse locale)
+              ├── OK → ignoré localement (≈80% des messages)
+              └── WARN/CRITICAL → IoT Core (MQTT) → Lambda → DynamoDB/EventBridge
+```
 
-| Requête | Sans GSI | Avec GSI |
+Réduction estimée : **80–90% du trafic cloud** supprimé. Décisions locales en < 5 ms.
+
+**Components déployés :**
+
+| Component | Source | Rôle |
 |---|---|---|
-| `GetItem id_poste=poste_1` | Partition key → 1 lecture | — |
-| `Query statut=EN_INTERVENTION` | `Scan` toute la table | `Query` sur GSI → rapide |
-| Coût à 100 000 postes | O(n) lectures | O(k) où k = postes EN_INTERVENTION |
+| `smart-assembly-analyzer` | Custom Python | Analyse locale, filtre les OK |
+| `aws.greengrass.ShadowManager` | AWS managed | Sync Device Shadow local ↔ cloud |
+| `aws.greengrass.StreamManager` | AWS managed | Buffer WARN/CRITICAL si réseau indisponible |
 
-**Consistance éventuelle du GSI**
-Le GSI est mis à jour de façon asynchrone après chaque `PutItem`/`UpdateItem` sur la table principale.
-Délai typique : quelques millisecondes à quelques secondes sous charge.
-**Impact** : une requête sur `statut-index` peut rater un poste passé `EN_INTERVENTION` dans la dernière seconde.
-**Acceptable** pour une vue de supervision — pas acceptable pour un système de facturation ou de sécurité critique.
+### Infrastructure lab (Jour 30)
 
-**Hot partition assumée et mitigée**
-`statut` n'a que 3 valeurs (`OK`, `WARN`, `CRITICAL`, `EN_INTERVENTION`) — faible cardinalité.
-En pic, toutes les écritures `EN_INTERVENTION` convergent sur la même partition GSI.
-Mitigation si le volume l'exige : **write sharding** — `statut#0`, `statut#1`... pour distribuer la charge, puis `UNION` des résultats côté application.
-Non implémenté ici (volume actuel < 100 postes), documenté pour l'entretien.
+| Ressource | Détail |
+|---|---|
+| Edge device | Docker sur PC Windows (pas EC2 — edge réaliste, zéro coût) |
+| IoT Thing | `greengrass-core-poste` enregistré dans IoT Core eu-west-3 |
+| Certificat | X.509 généré par IoT Core, monté dans le conteneur Docker |
+| Déploiement | Local via `greengrass-cli` (Greengrass cloud non dispo eu-west-3) |
+| IAM Role | Rôle EC2/device avec policies `AWSGreengrassV2TokenExchangeRoleAccess` |
+
+### Recipe du component `smart-assembly-analyzer`
+
+```yaml
+RecipeFormatVersion: "2020-01-25"
+ComponentName: smart-assembly-analyzer
+ComponentVersion: "1.0.0"
+ComponentDescription: "Analyse locale des métriques — filtre les OK, publie WARN/CRITICAL vers IoT Core"
+
+ComponentDependencies:
+  aws.greengrass.ShadowManager:
+    VersionRequirement: ">=2.0.0"
+    DependencyType: SOFT
+
+Manifests:
+  - Platform:
+      os: linux
+    Lifecycle:
+      Install:
+        Script: pip3 install awsiotsdk --break-system-packages
+      Run:
+        Script: python3 {artifacts:path}/analyzer.py
+    Artifacts:
+      - URI: s3://smart-assembly-artifacts/components/analyzer.py
+```
+
+### Flux OTA via Greengrass
+
+Greengrass gère nativement les mises à jour de logiciels embarqués :
+
+```
+1. Ingénieur pousse nouvelle version du component sur S3
+2. Crée un nouveau Deployment (local ou cloud selon région)
+3. Greengrass Nucleus télécharge via HTTPS (artefacts S3 uniquement)
+4. Installe et démarre le nouveau component
+5. Rollback automatique si le component ne démarre pas
+```
+
+Avantage vs OTA via Device Shadow seul : Greengrass gère le téléchargement, la validation de checksum et le rollback sans code custom.
+
 
 ### Trade-offs
 
