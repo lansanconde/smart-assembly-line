@@ -10,3 +10,4 @@ infra/secrets.tfvars
 
 # Certificats IoT — JAMAIS commité (clés privées)
 src/iot-simulator/certs/
+src/greengrass/certs/

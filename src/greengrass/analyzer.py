@@ -1,6 +1,6 @@
 """
 analyzer.py — Component edge "smart-assembly-analyzer"
-Edge Computing (équivalent component Greengrass)
+Jour 30 — Edge Computing (équivalent component Greengrass)
 
 Rôle :
   1. S'abonne au broker Mosquitto LOCAL (port 1883)
@@ -31,7 +31,7 @@ LOCAL_TOPIC    = "assembly-line/+/metrics"
 IOT_ENDPOINT   = "aood9gt2q2oe5-ats.iot.eu-west-3.amazonaws.com"
 IOT_CLIENT_ID  = "greengrass-core-poste"
 CERT_DIR       = "certs"
-CLOUD_TOPIC    = "assembly-line/{id_poste}/alerts"   # topic distinct des métriques brutes
+CLOUD_TOPIC    = "assembly-line/{id_poste}/metrics"  # même topic que le pipeline existant
 
 # ── Seuils d'alerte ────────────────────────────────────────
 SEUILS = {
