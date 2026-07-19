@@ -1,5 +1,6 @@
 # ============================================================
 # Edge Computing — Mosquitto + Analyzer (Docker = edge device)
+# Jour 30 / Jour 31 — Circuit Breaker + Buffer JSONL
 #
 # Architecture :
 #   Host : publish_vibration_edge.py → localhost:1883
@@ -28,10 +29,12 @@ services:
       # "mosquitto" = nom du service Docker, résolu automatiquement dans le réseau interne
       - LOCAL_BROKER=mosquitto
       - LOCAL_PORT=1883
-      - PYTHONUNBUFFERED=1 
+      - PYTHONUNBUFFERED=1
     volumes:
       # Certs IoT Core montés en lecture seule (pour la connexion cloud)
       - ./certs:/app/certs:ro
+      # Buffer JSONL persistant — survit aux redémarrages du conteneur (Jour 31)
+      - ./buffer:/app/buffer
     depends_on:
       - mosquitto
     restart: unless-stopped

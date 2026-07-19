@@ -1870,3 +1870,149 @@ En production multi-comptes (Dev / Staging / Prod dans des comptes séparés), l
 Plus les policies sont granulaires, plus elles sont sécurisées — mais plus elles sont difficiles à maintenir quand l'architecture évolue.
 Ici on choisit un niveau intermédiaire : actions spécifiques par service, pas de wildcard `s3:*`, mais pas non plus une policy par ressource individuelle.
 La règle de décision : une action non nécessaire aujourd'hui est refusée, on l'ajoute si le besoin émerge.
+
+
+
+## 6. Circuit Breaker IoT Core — Résilience Edge (Jour 31)
+
+### Problème adressé
+
+Sans circuit breaker, l'analyzer edge a deux comportements catastrophiques quand IoT Core est indisponible :
+
+**Au démarrage** : `iot_connection.connect().result()` bloque indéfiniment ou lève une exception → le conteneur crashe → Docker redémarre → boucle infinie de crashs.
+
+**En cours d'exécution** : chaque `publish()` vers IoT Core échoue silencieusement ou lève une exception → les événements WARN/CRITICAL sont perdus sans aucun enregistrement local.
+
+En contexte aérospatial, la perte d'événements critiques pendant une coupure réseau est inacceptable : une anomalie de vibration non enregistrée peut conduire à une pièce défectueuse qui passe en production.
+
+### Pattern Circuit Breaker
+
+Le circuit breaker est un automate à 3 états qui protège le système contre les appels répétés vers un service dégradé.
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+
+    CLOSED --> OPEN : 3 échecs consécutifs vers IoT Core
+    OPEN --> HALF_OPEN : 30 secondes écoulées
+    HALF_OPEN --> CLOSED : message test réussi + flush buffer
+    HALF_OPEN --> OPEN : message test échoué
+
+    CLOSED : CLOSED\nEnvoi normal vers IoT Core
+    OPEN : OPEN\nBuffer local — aucune tentative cloud
+    HALF_OPEN : HALF_OPEN\nTest un seul message
+```
+
+| État | Comportement edge | Trigger de transition |
+|---|---|---|
+| **CLOSED** | Envoi direct vers IoT Core | Démarrage, reconnexion réussie |
+| **OPEN** | Buffer local (JSONL), zéro tentative cloud | 3 échecs consécutifs |
+| **HALF_OPEN** | Teste un message unique | 30s après passage en OPEN |
+
+### Buffer local JSONL
+
+Quand le circuit est OPEN, les événements WARN/CRITICAL sont persistés localement dans un fichier JSON Lines :
+
+```
+src/greengrass/buffer/events_buffer.jsonl
+```
+
+**Pourquoi JSONL (JSON Lines) ?**
+- Chaque ligne est un JSON autonome → append atomique sans verrouillage
+- Résistant aux crashs : les lignes écrites avant un crash sont lisibles
+- Lecture séquentielle naturelle pour un flush ordonné
+- Pas de dépendance externe (SQLite, Redis, etc.)
+
+**Format d'un événement bufferisé :**
+```json
+{"id_poste":"poste_1","vibration":2.91,"temperature":92.3,"statut":"CRITICAL","edge_filtered":true,"buffered_at":"2026-07-17T21:45:00Z"}
+```
+
+**Flush au retour en CLOSED :**
+1. Lecture séquentielle du fichier (ordre chronologique préservé)
+2. Envoi de chaque événement vers IoT Core
+3. Suppression du fichier après succès complet
+
+### Architecture mise à jour
+
+```mermaid
+flowchart TD
+    SIM[publish_vibration_edge.py\nsimulateur capteur]
+    MOSQ[Mosquitto\nbroker local Docker]
+    ANALYZER[analyzer.py\nComposant edge]
+    CB{Circuit\nBreaker}
+    IOT[IoT Core\neu-west-3]
+    BUFFER[(buffer/\nevents_buffer.jsonl)]
+    LAMBDA[Lambda\nAnalyzeVibration]
+    DDB[DynamoDB\nmachine_state]
+
+    SIM -->|MQTT local| MOSQ
+    MOSQ -->|tous les messages| ANALYZER
+    ANALYZER -->|WARN/CRITICAL| CB
+    CB -->|CLOSED| IOT
+    CB -->|OPEN| BUFFER
+    BUFFER -->|flush au retour CLOSED| IOT
+    IOT --> LAMBDA
+    LAMBDA --> DDB
+```
+
+### Implémentation — classe CircuitBreaker
+
+```python
+class CircuitBreaker:
+    CLOSED    = "CLOSED"
+    OPEN      = "OPEN"
+    HALF_OPEN = "HALF_OPEN"
+
+    def __init__(self, failure_threshold=3, recovery_timeout=30):
+        self.state             = self.CLOSED
+        self.failure_count     = 0
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout  = recovery_timeout
+        self.last_failure_time = None
+
+    def record_success(self):
+        self.state         = self.CLOSED
+        self.failure_count = 0
+
+    def record_failure(self):
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        if self.failure_count >= self.failure_threshold:
+            self.state = self.OPEN
+
+    def can_attempt(self) -> bool:
+        if self.state == self.CLOSED:
+            return True
+        if self.state == self.OPEN:
+            if time.time() - self.last_failure_time >= self.recovery_timeout:
+                self.state = self.HALF_OPEN
+                return True
+            return False
+        return True  # HALF_OPEN : on tente
+```
+
+### Décisions de conception justifiées
+
+**Seuil de 3 échecs avant OPEN**
+Un seul échec peut être transitoire (pic de latence réseau). Trois échecs consécutifs indiquent une panne réelle. En dessous de 3, trop de faux positifs.
+
+**Recovery timeout de 30 secondes**
+Trop court (< 10s) → on teste trop souvent un service encore indisponible, ce qui aggrave la charge. Trop long (> 5min) → perte de données inutilement longue. 30s est le compromis standard pour les connexions MQTT industrielles.
+
+**JSONL plutôt qu'en mémoire**
+Si le conteneur Docker redémarre pendant une coupure IoT Core, les données en mémoire sont perdues. Le fichier JSONL persiste sur le volume Docker et survit aux redémarrages.
+
+**Flush ordonné et atomique**
+Le buffer est vidé ligne par ligne dans l'ordre chronologique. Si le flush échoue à mi-chemin, les lignes non encore envoyées restent dans le fichier (le fichier est tronqué progressivement, pas supprimé en bloc).
+
+### Test du circuit breaker (lab)
+
+**Simulation coupure IoT Core :**
+Modifier temporairement l'endpoint dans `analyzer.py` → mauvais endpoint → 3 échecs → OPEN → buffer local.
+
+**Vérification :**
+1. Les logs affichent `[CB] OPEN — buffering local`
+2. Le fichier `buffer/events_buffer.jsonl` se remplit
+3. Restaurer le bon endpoint → `[CB] HALF_OPEN → CLOSED` → flush automatique
+4. Vérifier dans DynamoDB que les événements bufferisés sont bien arrivés
