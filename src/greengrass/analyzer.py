@@ -1,16 +1,19 @@
 """
-analyzer.py — Component edge "smart-assembly-analyzer"
-Jour 31 — Circuit Breaker + Buffer local JSONL
+analyzer.py — Orchestrateur edge "smart-assembly-analyzer"
+TinyML : Isolation Forest + Circuit Breaker + Buffer JSONL
 
-Circuit Breaker états :
-  CLOSED    : envoi normal vers IoT Core
-  OPEN      : buffer local JSONL, aucune tentative cloud
-  HALF_OPEN : teste un message, flush buffer si succès
+Responsabilité : orchestration uniquement.
+  - Reçoit les messages Mosquitto
+  - Délègue la détection ML à detector.py (AnomalyDetector)
+  - Applique les seuils statiques (WARN/CRITICAL)
+  - Gère le circuit breaker et le buffer JSONL
+  - Envoie vers IoT Core
 
 Flux :
   publish_vibration_edge.py → Mosquitto:1883 → analyzer.py
-                                                    ├── OK       → ignoré
-                                                    └── WARN/CRITICAL
+                                                    ├── detector.update()  → ML (Isolation Forest)
+                                                    ├── get_statut()       → seuils statiques
+                                                    └── WARN/CRITICAL/ANOMALY
                                                           ├── CB CLOSED/HALF_OPEN → IoT Core
                                                           └── CB OPEN             → buffer JSONL
 """
@@ -22,6 +25,7 @@ import threading
 import paho.mqtt.client as mqtt
 from awsiot import mqtt_connection_builder
 from awscrt import mqtt as aws_mqtt
+from detector import AnomalyDetector
 
 # ── Configuration locale (Mosquitto) ───────────────────────
 LOCAL_BROKER = os.environ.get("LOCAL_BROKER", "localhost")
@@ -45,9 +49,12 @@ BUFFER_DIR  = "buffer"
 BUFFER_FILE = f"{BUFFER_DIR}/events_buffer.jsonl"
 
 # ── Compteurs ──────────────────────────────────────────────
-stats = {"total": 0, "forwarded": 0, "buffered": 0}
+stats = {"total": 0, "forwarded": 0, "buffered": 0, "ml_anomalies": 0}
 
 iot_connection = None
+
+# ── Détecteur TinyML ───────────────────────────────────────
+detector = AnomalyDetector(warmup_size=200, contamination=0.05, threshold=-0.1)
 
 
 # ════════════════════════════════════════════════════════════
@@ -263,20 +270,45 @@ def on_local_message(client, userdata, msg):
     stats["total"] += 1
     try:
         payload = json.loads(msg.payload.decode())
-        statut  = get_statut(payload)
 
-        if statut in ("WARN", "CRITICAL"):
+        # ── Détection ML (Isolation Forest) ────────────────
+        ml_result = detector.update(payload)
+        ml_detected = ml_result.get("ml_detected", False)
+        ml_score    = ml_result.get("score", None)
+
+        if ml_result["ready"] and ml_detected:
+            stats["ml_anomalies"] += 1
+            print(f"[ML] ANOMALY détectée — score={ml_score} "
+                  f"vib={payload['vibration']} temp={payload['temperature']}")
+
+        # ── Détection seuils statiques ──────────────────────
+        statut = get_statut(payload)
+
+        # Décision d'envoi : WARN/CRITICAL OU anomalie ML
+        doit_envoyer = statut in ("WARN", "CRITICAL") or (ml_result["ready"] and ml_detected)
+
+        if doit_envoyer:
             stats["forwarded"] += 1
-            forward_to_cloud(payload, statut)
+            # Enrichir le payload avec les champs ML
+            payload_enrichi = {
+                **payload,
+                "ml_detected":   ml_detected,
+                "anomaly_score": ml_score,
+                "ml_ready":      ml_result["ready"],
+            }
+            forward_to_cloud(payload_enrichi, statut if statut != "OK" else "ANOMALY")
         else:
-            print(f"[EDGE] OK filtré — vib={payload['vibration']} temp={payload['temperature']}")
+            warmup_info = "" if ml_result["ready"] else f" [ML warm-up {len(detector._warmup_data)}/{detector.warmup_size}]"
+            print(f"[EDGE] OK filtré — vib={payload['vibration']} temp={payload['temperature']}{warmup_info}")
 
         if stats["total"] % 10 == 0:
             total = stats["total"]
             fwd   = stats["forwarded"]
             buf   = stats["buffered"]
+            ml    = stats["ml_anomalies"]
             pct   = (1 - fwd / total) * 100 if total else 0
-            print(f"\n[STATS] {total} mesures | {fwd} cloud | {buf} buffer | {pct:.0f}% filtrées | CB:{cb.label}\n")
+            print(f"\n[STATS] {total} mesures | {fwd} cloud | {buf} buffer | "
+                  f"{ml} ML anomalies | {pct:.0f}% filtrées | CB:{cb.label}\n")
 
     except Exception as e:
         print(f"[ERROR] {e}")

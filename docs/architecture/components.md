@@ -2016,3 +2016,78 @@ Modifier temporairement l'endpoint dans `analyzer.py` → mauvais endpoint → 3
 2. Le fichier `buffer/events_buffer.jsonl` se remplit
 3. Restaurer le bon endpoint → `[CB] HALF_OPEN → CLOSED` → flush automatique
 4. Vérifier dans DynamoDB que les événements bufferisés sont bien arrivés
+
+
+
+---
+
+## 7. TinyML — Inférence Edge (Jour 32)
+
+### 7.1 Contexte et positionnement
+
+**TinyML au sens strict** désigne des modèles ML inférés sur des microcontrôleurs (Arduino, STM32, ESP32) avec quelques kB de RAM. Dans notre projet, le terme est utilisé au sens large : **inférence ML légère à l'edge**, exécutée dans le conteneur Docker qui simule le device edge. L'esprit est identique : décision locale, sans round-trip vers le cloud.
+
+**Pourquoi faire de l'inférence à l'edge et pas dans le cloud ?**
+
+| Critère | Inférence cloud | Inférence edge |
+|---------|----------------|----------------|
+| Latence | 50-200ms (réseau) | < 5ms (local) |
+| Disponibilité | Dépend du réseau | Toujours disponible |
+| Coût | API calls facturés | CPU local gratuit |
+| Confidentialité | Données envoyées | Données restent locales |
+| Cas d'usage | Modèles lourds | Décisions temps réel |
+
+Dans un contexte aérospatial, une anomalie vibratoire détectée en 2ms edge plutôt qu'en 200ms cloud peut éviter un incident sur une pièce critique tournant à 10 000 RPM.
+
+### 7.2 Limitation des seuils statiques
+
+Notre analyzer actuel utilise des règles fixes :
+```
+vibration > 2.0  → WARN
+vibration > 2.5  → CRITICAL
+```
+
+Ces seuils ratent deux classes d'anomalies réelles :
+
+**Anomalie de pattern** : vibration à 1.8 (sous le seuil) mais avec une variabilité anormalement élevée sur les 10 dernières mesures — signe d'un roulement qui commence à s'user.
+
+**Anomalie multivariée** : vibration à 1.9 ET température à 78°C pris séparément sont normaux, mais cette combinaison précise n'existe jamais dans les données normales — corrélation anormale.
+
+Un modèle ML apprend ces patterns automatiquement depuis les données, sans qu'on les programme explicitement.
+
+### 7.3 Choix algorithmique : Isolation Forest
+
+#### Pourquoi pas un classifieur supervisé ?
+
+Un classifieur (Random Forest, SVM) nécessite des données **labellisées** : "ceci est normal", "ceci est une anomalie". On n'a pas de labels — on ne sait pas a priori quelles combinaisons sont anormales sur une nouvelle ligne d'assemblage.
+
+#### Isolation Forest (Liu et al., 2008)
+
+**Principe** : une anomalie est un point qui s'isole facilement de l'ensemble des données. L'algorithme construit des arbres de décision aléatoires. Plus un point est isolé rapidement (peu de coupures nécessaires), plus son score d'anomalie est élevé.
+
+```
+Données normales : regroupées → difficiles à isoler → chemin long dans l'arbre
+Anomalies        : isolées   → faciles à isoler   → chemin court dans l'arbre
+```
+
+**Score de décision** : retourne un score entre -1 et 1.
+- Score proche de +1 : point normal
+- Score proche de -1 : anomalie probable
+- Seuil typique : -0.1 (ajustable selon la tolérance aux faux positifs)
+
+**Avantages pour notre cas :**
+- Non supervisé : pas besoin de labels
+- Efficace sur données multivariées (vibration + température + pression ensemble)
+- Léger : quelques Ko en mémoire une fois entraîné
+- Robuste aux données de haute dimension
+
+**Hyperparamètres clés :**
+```python
+IsolationForest(
+    n_estimators=100,    # nombre d'arbres (100 = bon équilibre perf/vitesse)
+    contamination=0.05,  # % estimé d'anomalies dans les données d'entraînement
+    max_samples='auto',  # taille de chaque sous-échantillon
+    random_state=42      # reproductibilité
+)
+```
+----

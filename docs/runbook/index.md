@@ -506,6 +506,68 @@ Résultat attendu : 1 log `LogIntervention`, les 4 autres exécutions Step Funct
 
 ---
 
+## IoT Core — Device Shadow (Jour 29)
+
+### Lire le Shadow d'un poste (état courant reported + desired)
+```powershell
+aws iot-data get-thing-shadow `
+  --thing-name poste_1 `
+  --region eu-west-3 `
+  shadow.json
+Get-Content shadow.json | ConvertFrom-Json | ConvertTo-Json -Depth 10
+```
+
+### Vérifier uniquement le reported (ce que le capteur a envoyé)
+```powershell
+aws iot-data get-thing-shadow `
+  --thing-name poste_1 `
+  --region eu-west-3 `
+  shadow.json
+(Get-Content shadow.json | ConvertFrom-Json).state.reported
+```
+
+### Modifier les seuils à chaud via le desired (test delta)
+```powershell
+# Abaisser le seuil vibration à 1.5 → le simulateur doit basculer plus d'events en WARN
+$desired = '{"state":{"desired":{"seuil_vibration":1.5}}}'
+$enc = [System.Text.UTF8Encoding]::new($false)
+[System.IO.File]::WriteAllText("$env:TEMP\shadow_desired.json", $desired, $enc)
+aws iot-data update-thing-shadow `
+  --thing-name poste_1 `
+  --region eu-west-3 `
+  --payload "file://$env:TEMP\shadow_desired.json" `
+  shadow_response.json
+```
+
+Le simulateur affiche : `[SHADOW] Seuil vibration mis à jour → 1.5 m/s²`
+
+### Remettre les seuils par défaut
+```powershell
+$reset = '{"state":{"desired":{"seuil_vibration":2.0,"seuil_temperature":80.0}}}'
+$enc = [System.Text.UTF8Encoding]::new($false)
+[System.IO.File]::WriteAllText("$env:TEMP\shadow_reset.json", $reset, $enc)
+aws iot-data update-thing-shadow `
+  --thing-name poste_1 `
+  --region eu-west-3 `
+  --payload "file://$env:TEMP\shadow_reset.json" `
+  shadow_response.json
+```
+
+### Vérifier la règle EventBridge CRITICAL (Jour 29)
+```powershell
+aws events describe-rule `
+  --name smart-assembly-iot-direct-critical `
+  --event-bus-name smart-assembly-events `
+  --region eu-west-3 `
+  --query "{Nom:Name,Statut:State,Pattern:EventPattern}"
+```
+
+!!! note "Limitation — IoT → EventBridge direct"
+    L'action `eventBridge` n'est pas disponible dans `aws_iot_topic_rule` en eu-west-3 (juillet 2026).
+    Le routing IoT → EventBridge passe par Lambda (flux existant : IoT → Lambda → EventBridge via PutEvents).
+
+---
+
 ## Coûts AWS
 
 ### Voir une estimation des coûts du mois en cours
@@ -520,3 +582,168 @@ aws ce get-cost-and-usage \
     VPC, subnets, route tables et Internet Gateway sont **gratuits**.
     Les coûts commenceront avec S3 (stockage), Lambda (invocations) et IoT Core (messages).
     Tout reste dans le Free Tier tant que le volume reste faible.
+
+---
+
+## Edge Computing — Mosquitto + Analyzer (Jour 30)
+
+### Démarrer l'edge device (Docker)
+```bash
+cd src/greengrass
+docker compose up
+```
+
+Deux conteneurs démarrent :
+- `smart-assembly-broker` — Mosquitto MQTT local (port 1885 sur host, 1883 interne)
+- `smart-assembly-analyzer` — component edge : filtre + transfère WARN/CRITICAL vers IoT Core
+
+### Lancer le simulateur capteur (host)
+```bash
+cd src/iot-simulator
+python publish_vibration_edge.py
+```
+
+Le simulateur publie vers `localhost:1885` → Mosquitto → Analyzer → IoT Core (WARN/CRITICAL seulement).
+
+### Vérifier la réception dans le cloud
+IoT Core Console → **MQTT Test Client** → Subscribe → `assembly-line/poste_1/alerts`
+
+Ou via CLI (surveiller les logs CloudWatch si une règle IoT est configurée sur ce topic).
+
+### Valider le filtrage edge (logs Docker)
+```bash
+docker logs smart-assembly-analyzer --follow
+```
+
+Résultat attendu :
+- `[EDGE ✓] OK filtré` → mesures normales ignorées localement
+- `[CLOUD ↑] WARN/CRITICAL` → alertes transmises vers IoT Core
+- `[STATS]` toutes les 10 mesures → taux de filtrage local
+
+### Arrêter l'edge device
+```bash
+cd src/greengrass
+docker compose down
+```
+
+### Vérifier l'état des conteneurs
+```bash
+docker ps -a | grep smart-assembly
+```
+
+### Rebuilder après modification du code analyzer
+```bash
+cd src/greengrass
+docker compose down
+docker compose up --build
+```
+
+!!! note "Ports"
+    Port `1885` côté host (Windows) → port `1883` interne Docker.
+    `serre-mosquitto` occupe le port `1883` sur le host — ne pas modifier.
+
+!!! note "Limitation Greengrass"
+    Greengrass v2 n'est pas disponible en eu-west-3 et l'image Docker officielle
+    n'est pas sur Docker Hub. L'architecture Mosquitto + analyzer.py reproduit
+    le même pattern edge (filtrage local → cloud sélectif) sans le runtime Greengrass.
+
+!!! warning "PYTHONUNBUFFERED"
+    Sans `PYTHONUNBUFFERED=1` dans docker-compose.yml, les logs Python
+    n'apparaissent pas dans `docker logs`. Toujours inclure cette variable.
+
+---
+
+## TinyML — Isolation Forest Edge (Jour 32)
+
+### Démarrer la stack avec ML actif
+```powershell
+cd src\greengrass
+docker compose down
+docker compose up --build -d   # rebuild obligatoire (detector.py + scikit-learn)
+docker logs smart-assembly-analyzer --follow
+```
+
+### Phase warm-up (200 mesures requises)
+
+Le modèle s'entraîne automatiquement après 200 mesures. Pendant cette phase :
+- Les seuils statiques (WARN/CRITICAL) fonctionnent normalement
+- Le ML est inactif (`[ML warm-up X/200]` visible dans les logs OK filtrés)
+- Durée : ~7 minutes à 2s/mesure
+
+Logs attendus :
+```
+[ML] Warm-up : 50/200 mesures collectées...
+[ML] Warm-up : 100/200 mesures collectées...
+[ML] Warm-up : 150/200 mesures collectées...
+[ML] Warm-up : 200/200 mesures collectées...
+[ML] Entraînement Isolation Forest sur 200 mesures...
+[ML] Modèle prêt. Taux faux positifs (train) : 5.0% (cible < 5%)
+[ML] Seuil décision : -0.1 | Features : 10
+```
+
+### Injecter une anomalie synthétique pour tester le ML
+
+```powershell
+# 1. Créer le payload anomalie (sans BOM)
+$enc = [System.Text.UTF8Encoding]::new($false)
+[System.IO.File]::WriteAllText(
+    "$env:TEMP\anomaly.json",
+    '{"id_poste":"poste_1","vibration":5.5,"temperature":75.0,"pression":4.0,"timestamp":"2026-07-19T19:50:00Z"}',
+    $enc
+)
+
+# 2. Copier dans le conteneur Mosquitto
+docker cp "$env:TEMP\anomaly.json" smart-assembly-broker:/tmp/anomaly.json
+
+# 3. Envoyer 12 fois (pour remplir la fenêtre glissante de 10)
+1..12 | ForEach-Object {
+    docker exec smart-assembly-broker mosquitto_pub -h localhost -p 1883 `
+        -t "assembly-line/poste_1/metrics" -f /tmp/anomaly.json
+    Start-Sleep -Milliseconds 200
+}
+```
+
+Résultat attendu à partir de la 6e injection :
+```
+[ML] ANOMALY détectée — score=-0.1159 vib=5.5 temp=75.0
+[CLOUD] [CLOSED] CRITICAL — vib=5.5 temp=75.0
+```
+
+!!! note "Fenêtre glissante"
+    Le ML détecte les anomalies de **pattern** sur les 10 dernières mesures.
+    Une seule injection ne suffit pas — la fenêtre doit se remplir de valeurs
+    anormales pour que `vib_mean_10` et `vib_std_10` dévient significativement
+    du profil appris pendant le warm-up.
+
+!!! note "Seuil de décision"
+    Seuil par défaut : `-0.1`. Score < -0.1 → ANOMALY.
+    Ajustable dans `detector.py` : `AnomalyDetector(threshold=-0.05)` pour
+    plus de sensibilité (plus de faux positifs), ou `-0.2` pour moins (moins de détections).
+
+### Résultats du test Jour 32 (référence)
+
+| Phase | Mesures | Durée | Résultat |
+|-------|---------|-------|----------|
+| Warm-up | 200 | ~7 min | Collecte features en mémoire |
+| Entraînement | — | 145ms | Isolation Forest prêt, FP=5.0% |
+| Inférence normale | 60+ | — | 0 ML anomalies (comportement correct) |
+| Injection vib=5.5 ×12 | 12 | — | ML déclenche à partir de la 6e (score=-0.1159) |
+
+### Vérifier les stats ML en temps réel
+```powershell
+docker logs smart-assembly-analyzer --follow | Select-String "STATS|ML"
+```
+
+Affiche toutes les 10 mesures :
+```
+[STATS] 270 mesures | 254 cloud | 0 buffer | 3 ML anomalies | 6% filtrées | CB:CLOSED
+```
+
+### Architecture des fichiers
+
+```
+src/greengrass/
+  analyzer.py    ← orchestrateur (MQTT + CB + routing) — inchangé dans sa logique
+  detector.py    ← TinyML : features, warm-up, Isolation Forest, inférence
+  Dockerfile     ← ajout scikit-learn + numpy + joblib + COPY detector.py
+```

@@ -53,4 +53,7 @@ nav:
     - Vue globale: architecture/global.md
     - Par composant: architecture/components.md
     - Sécurité: architecture/security.md
+  - ML / TinyML:
+    - TinyML Edge: ml/tinyml.md
+    - Model Card: ml/models/model_card.md
   - Runbook: runbook/index.md
