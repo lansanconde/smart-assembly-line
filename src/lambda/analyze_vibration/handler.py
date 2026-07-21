@@ -3,8 +3,11 @@ import boto3
 import os
 from datetime import datetime, timezone
 
-dynamodb = boto3.resource("dynamodb")
+dynamodb   = boto3.resource("dynamodb")
+cloudwatch = boto3.client("cloudwatch")
+
 TABLE_NAME = os.environ.get("TABLE_NAME", "machine_state")
+CW_NAMESPACE = "SmartAssemblyLine"
 
 # Seuils d'anomalie par métrique
 THRESHOLDS = {
@@ -32,6 +35,61 @@ def evaluate_status(payload: dict) -> tuple[str, str | None]:
             anomalie_type = metric.upper()
 
     return status, anomalie_type
+
+
+def publish_cloudwatch_metrics(payload: dict, statut: str):
+    """
+    Publie les métriques capteurs dans CloudWatch pour Grafana.
+    Namespace : SmartAssemblyLine
+    """
+    id_poste = payload.get("id_poste", "unknown")
+    try:
+        cloudwatch.put_metric_data(
+            Namespace=CW_NAMESPACE,
+            MetricData=[
+                {
+                    "MetricName": "Vibration",
+                    "Dimensions": [{"Name": "Poste", "Value": id_poste}],
+                    "Value": float(payload.get("vibration", 0)),
+                    "Unit": "None",
+                },
+                {
+                    "MetricName": "Temperature",
+                    "Dimensions": [{"Name": "Poste", "Value": id_poste}],
+                    "Value": float(payload.get("temperature", 0)),
+                    "Unit": "None",
+                },
+                {
+                    "MetricName": "Pression",
+                    "Dimensions": [{"Name": "Poste", "Value": id_poste}],
+                    "Value": float(payload.get("pression", 0)),
+                    "Unit": "None",
+                },
+                {
+                    "MetricName": "MessageCount",
+                    "Dimensions": [
+                        {"Name": "Poste",  "Value": id_poste},
+                        {"Name": "Statut", "Value": statut},
+                    ],
+                    "Value": 1,
+                    "Unit": "Count",
+                },
+            ],
+        )
+        # AnomalyScore ML si présent dans le payload
+        if payload.get("ml_detected") is not None:
+            cloudwatch.put_metric_data(
+                Namespace=CW_NAMESPACE,
+                MetricData=[{
+                    "MetricName": "AnomalyScore",
+                    "Dimensions": [{"Name": "Poste", "Value": id_poste}],
+                    "Value": float(payload.get("anomaly_score", 0)),
+                    "Unit": "None",
+                }],
+            )
+    except Exception as e:
+        # Ne pas bloquer le pipeline si CloudWatch échoue
+        print(f"[CloudWatch] Erreur publication métriques : {e}")
 
 
 def lambda_handler(event, context):
@@ -63,6 +121,9 @@ def lambda_handler(event, context):
         "timestamp_last":   timestamp,
         "anomalie_type":    anomalie_type or "null",
     })
+
+    # Publication métriques CloudWatch pour Grafana
+    publish_cloudwatch_metrics(event, status)
 
     print(f"[AnalyzeVibration] {id_poste} → {status} | anomalie: {anomalie_type}")
     return {"statusCode": 200, "statut": status, "id_poste": id_poste}

@@ -56,4 +56,7 @@ nav:
   - ML / TinyML:
     - TinyML Edge: ml/tinyml.md
     - Model Card: ml/models/model_card.md
+  - Monitoring:
+    - IoT SiteWise (théorie): monitoring/sitewise.md
+    - Amazon Managed Grafana: monitoring/grafana.md
   - Runbook: runbook/index.md
