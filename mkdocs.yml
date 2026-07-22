@@ -59,4 +59,5 @@ nav:
   - Monitoring:
     - IoT SiteWise (théorie): monitoring/sitewise.md
     - Amazon Managed Grafana: monitoring/grafana.md
+    - Alarms + SNS: monitoring/alarms.md   
   - Runbook: runbook/index.md
