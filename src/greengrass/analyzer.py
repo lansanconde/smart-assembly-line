@@ -1,6 +1,7 @@
 """
 analyzer.py — Orchestrateur edge "smart-assembly-analyzer"
 TinyML : Isolation Forest + Circuit Breaker + Buffer JSONL
+Anti retry storm : backoff exponentiel + Full Jitter sur reconnect_loop()
 
 Responsabilité : orchestration uniquement.
   - Reçoit les messages Mosquitto
@@ -20,6 +21,7 @@ Flux :
 
 import json
 import os
+import random
 import time
 import threading
 import paho.mqtt.client as mqtt
@@ -43,6 +45,11 @@ SEUILS = {
     "vibration":   2.0,   # m/s²
     "temperature": 80.0,  # °C
 }
+
+# ── Jitter config (Jour 34 — anti retry storm) ─────────────
+RECONNECT_BASE_DELAY  = 1.0   # secondes
+RECONNECT_MAX_DELAY   = 60.0  # plafond
+RECONNECT_MAX_ATTEMPT = 8     # cap de l'exposant
 
 # ── Buffer JSONL ───────────────────────────────────────────
 BUFFER_DIR  = "buffer"
@@ -162,25 +169,53 @@ def flush_buffer():
 
 
 # ════════════════════════════════════════════════════════════
+# Jitter (Jour 34 — anti retry storm)
+# ════════════════════════════════════════════════════════════
+
+def _backoff_jitter(attempt: int) -> float:
+    """
+    Full Jitter — pattern recommandé par AWS.
+    sleep = random(0, min(cap, base * 2^attempt))
+
+    Distribue les reconnexions aléatoirement dans la fenêtre de backoff,
+    évitant que tous les postes reconnectent simultanément après une panne IoT Core.
+    Source : https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+    """
+    max_delay = min(RECONNECT_MAX_DELAY, RECONNECT_BASE_DELAY * (2 ** attempt))
+    return random.uniform(0, max_delay)
+
+
+# ════════════════════════════════════════════════════════════
 # Thread de reconnexion proactive
 # ════════════════════════════════════════════════════════════
 
 def reconnect_loop():
     """
-    Thread daemon : vérifie toutes les 10s si le circuit est OPEN.
-    Si le recovery_timeout est écoulé, tente de reconnecter IoT Core
-    et flush le buffer — même si aucun message MQTT local n'arrive.
+    Thread daemon : reconnexion proactive avec backoff exponentiel + Full Jitter.
+    Remplace le time.sleep(10) fixe par _backoff_jitter(attempt)
+    pour éviter le retry storm lors de la reconnexion simultanée de plusieurs postes.
     """
+    attempt = 0
     while True:
-        time.sleep(10)
-        if cb.state == CircuitBreaker.OPEN:
-            if cb.can_attempt():  # passe HALF_OPEN si timeout écoulé
-                print("[CB] Thread reconnexion : tentative IoT Core...")
+        if cb.state in (CircuitBreaker.OPEN, CircuitBreaker.HALF_OPEN):
+            if cb.can_attempt():  # passe HALF_OPEN si recovery_timeout écoulé
+                delay = _backoff_jitter(attempt)
+                print(f"[CB] Thread reconnexion — tentative {attempt + 1}, "
+                      f"attente {delay:.1f}s (jitter, max={min(RECONNECT_MAX_DELAY, RECONNECT_BASE_DELAY * (2**attempt)):.0f}s)")
+                time.sleep(delay)
+                print("[CB] Tentative IoT Core...")
                 if connect_iot_core():
                     cb.record_success()
+                    attempt = 0  # reset après succès
                     flush_buffer()
                 else:
                     cb.record_failure()
+                    attempt = min(attempt + 1, RECONNECT_MAX_ATTEMPT)
+            else:
+                time.sleep(5)  # pas encore prêt à retenter
+        else:
+            attempt = 0  # CB fermé → reset le compteur de backoff
+            time.sleep(5)
 
 
 # ════════════════════════════════════════════════════════════
@@ -336,9 +371,10 @@ def main():
     else:
         cb.record_success()
 
-    # 2. Thread de reconnexion proactive (flush buffer même sans messages entrants)
+    # 2. Thread de reconnexion proactive avec jitter (Jour 34)
     t = threading.Thread(target=reconnect_loop, daemon=True)
     t.start()
+    print(f"[CB] Thread reconnect_loop démarré (Full Jitter — base={RECONNECT_BASE_DELAY}s, max={RECONNECT_MAX_DELAY}s)")
 
     # 3. Connexion Mosquitto local
     local_client = mqtt.Client(client_id="edge-analyzer")

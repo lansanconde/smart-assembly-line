@@ -59,5 +59,7 @@ nav:
   - Monitoring:
     - IoT SiteWise (théorie): monitoring/sitewise.md
     - Amazon Managed Grafana: monitoring/grafana.md
-    - Alarms + SNS: monitoring/alarms.md   
+    - Alarms + SNS: monitoring/alarms.md
+  - Chaos Engineering:
+    - "Axe 3 — Retry Storm": chaos/chaos_axe3.md
   - Runbook: runbook/index.md
