@@ -53,6 +53,7 @@ nav:
     - Vue globale: architecture/global.md
     - Par composant: architecture/components.md
     - Sécurité: architecture/security.md
+    - Consolidation 3 axes: architecture/consolidation.md
   - ML / TinyML:
     - TinyML Edge: ml/tinyml.md
     - Model Card: ml/models/model_card.md
@@ -62,4 +63,5 @@ nav:
     - Alarms + SNS: monitoring/alarms.md
   - Chaos Engineering:
     - "Axe 3 — Retry Storm": chaos/chaos_axe3.md
+    - "Rapport Axe 3": chaos/rapport_chaos_axe3.md
   - Runbook: runbook/index.md
