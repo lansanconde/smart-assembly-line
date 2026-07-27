@@ -1,4 +1,4 @@
-# CI/CD — GitHub Actions (Jour 38)
+# CI/CD — GitHub Actions
 
 > Pipeline automatisé pour le projet Smart Assembly Line.
 > Déclenché sur chaque PR et push sur `main`.
