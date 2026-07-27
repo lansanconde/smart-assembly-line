@@ -11,9 +11,9 @@ resource "aws_iam_policy" "lambda_boundary" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowS3Write"
-        Effect = "Allow"
-        Action = ["s3:PutObject"]
+        Sid      = "AllowS3Write"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
         Resource = "${aws_s3_bucket.raw_data.arn}/*"
       },
       {
@@ -76,10 +76,10 @@ resource "aws_s3_bucket_policy" "raw_data" {
         Resource = "${aws_s3_bucket.raw_data.arn}/*"
       },
       {
-        Sid    = "DenyPublicAccess"
-        Effect = "Deny"
+        Sid       = "DenyPublicAccess"
+        Effect    = "Deny"
         Principal = "*"
-        Action   = ["s3:*"]
+        Action    = ["s3:*"]
         Resource = [
           aws_s3_bucket.raw_data.arn,
           "${aws_s3_bucket.raw_data.arn}/*"

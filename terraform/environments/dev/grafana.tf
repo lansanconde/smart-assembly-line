@@ -90,10 +90,10 @@ resource "aws_cloudwatch_dashboard" "smart_assembly" {
     widgets = [
       # ── Ligne 1 : Métriques temps réel ─────────────────
       {
-        type = "metric"
-        x    = 0
-        y    = 0
-        width = 12
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
         height = 6
         properties = {
           title  = "Vibration — poste_1 (m/s²)"
@@ -115,10 +115,10 @@ resource "aws_cloudwatch_dashboard" "smart_assembly" {
         }
       },
       {
-        type = "metric"
-        x    = 12
-        y    = 0
-        width = 12
+        type   = "metric"
+        x      = 12
+        y      = 0
+        width  = 12
         height = 6
         properties = {
           title  = "Température — poste_1 (°C)"
@@ -140,10 +140,10 @@ resource "aws_cloudwatch_dashboard" "smart_assembly" {
       },
       # ── Ligne 2 : Comptage par statut ──────────────────
       {
-        type = "metric"
-        x    = 0
-        y    = 6
-        width = 8
+        type   = "metric"
+        x      = 0
+        y      = 6
+        width  = 8
         height = 6
         properties = {
           title  = "Messages CRITICAL — poste_1"
@@ -159,10 +159,10 @@ resource "aws_cloudwatch_dashboard" "smart_assembly" {
         }
       },
       {
-        type = "metric"
-        x    = 8
-        y    = 6
-        width = 8
+        type   = "metric"
+        x      = 8
+        y      = 6
+        width  = 8
         height = 6
         properties = {
           title  = "Messages WARN — poste_1"
@@ -178,10 +178,10 @@ resource "aws_cloudwatch_dashboard" "smart_assembly" {
         }
       },
       {
-        type = "metric"
-        x    = 16
-        y    = 6
-        width = 8
+        type   = "metric"
+        x      = 16
+        y      = 6
+        width  = 8
         height = 6
         properties = {
           title  = "Pression — poste_1 (bar)"
@@ -197,10 +197,10 @@ resource "aws_cloudwatch_dashboard" "smart_assembly" {
       },
       # ── Ligne 3 : KPI anomalies ML ──────────────────────
       {
-        type = "metric"
-        x    = 0
-        y    = 12
-        width = 24
+        type   = "metric"
+        x      = 0
+        y      = 12
+        width  = 24
         height = 6
         properties = {
           title  = "Anomaly Score ML — poste_1 (seuil : -0.1)"

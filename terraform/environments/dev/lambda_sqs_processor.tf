@@ -92,9 +92,9 @@ resource "aws_iam_role_policy" "lambda_sfn_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "StartStepFunctions"
-        Effect = "Allow"
-        Action = "states:StartExecution"
+        Sid      = "StartStepFunctions"
+        Effect   = "Allow"
+        Action   = "states:StartExecution"
         Resource = aws_sfn_state_machine.intervention_workflow.arn
       },
       {

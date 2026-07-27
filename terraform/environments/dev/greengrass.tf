@@ -45,8 +45,8 @@ resource "aws_iot_policy" "greengrass_core" {
       },
       # Publication vers IoT Core (données filtrées WARN/CRITICAL)
       {
-        Effect   = "Allow"
-        Action   = "iot:Publish"
+        Effect = "Allow"
+        Action = "iot:Publish"
         Resource = [
           "arn:aws:iot:eu-west-3:${data.aws_caller_identity.current.account_id}:topic/assembly-line/*/metrics",
           "arn:aws:iot:eu-west-3:${data.aws_caller_identity.current.account_id}:topic/assembly-line/*/alerts",
@@ -56,8 +56,8 @@ resource "aws_iot_policy" "greengrass_core" {
       },
       # Abonnement aux topics (delta Shadow, commandes OTA)
       {
-        Effect   = "Allow"
-        Action   = ["iot:Subscribe", "iot:Receive"]
+        Effect = "Allow"
+        Action = ["iot:Subscribe", "iot:Receive"]
         Resource = [
           "arn:aws:iot:eu-west-3:${data.aws_caller_identity.current.account_id}:topicfilter/assembly-line/*",
           "arn:aws:iot:eu-west-3:${data.aws_caller_identity.current.account_id}:topicfilter/$aws/things/*/shadow/*",
@@ -66,8 +66,8 @@ resource "aws_iot_policy" "greengrass_core" {
       },
       # Device Shadow
       {
-        Effect   = "Allow"
-        Action   = [
+        Effect = "Allow"
+        Action = [
           "iot:GetThingShadow",
           "iot:UpdateThingShadow",
           "iot:DeleteThingShadow"

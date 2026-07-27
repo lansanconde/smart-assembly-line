@@ -2,7 +2,7 @@
 # CIDR /16 intentionnellement large : un VPC ne se redimensionne pas après création
 resource "aws_vpc" "main" {
   cidr_block           = "10.10.0.0/16"
-  enable_dns_hostnames = true  # Les ressources auront des noms DNS automatiques
+  enable_dns_hostnames = true # Les ressources auront des noms DNS automatiques
   enable_dns_support   = true
 
   tags = { Name = "smart-assembly-vpc" }
