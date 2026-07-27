@@ -729,3 +729,21 @@ rm src/greengrass/buffer/events_buffer.jsonl
 | CLOSED (rétabli) | en cours | normal | normal | 0 |
 
 Flush complet de 57 événements en **2 secondes** à la reconnexion.
+
+
+---
+
+## CI/CD — GitHub Actions (Jour 38)
+
+### Pipeline déclenché automatiquement
+
+| Job | Trigger | Durée |
+|-----|---------|-------|
+| terraform-validate | PR + push main | ~15s |
+| security-scan (Checkov) | PR + push main | ~35s |
+| python-tests (pytest) | PR + push main | ~18s |
+| terraform-plan | PR uniquement | ~18s |
+| terraform-apply | push main uniquement | — |
+| drift-detection | schedule lundi 8h | — |
+
+### Vérifier que la CI est verte
