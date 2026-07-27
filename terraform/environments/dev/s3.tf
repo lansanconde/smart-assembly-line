@@ -28,7 +28,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "raw_data" {
 
 # Lifecycle — optimisation des coûts par classe de stockage
 resource "aws_s3_bucket_lifecycle_configuration" "raw_data" {
-  bucket = aws_s3_bucket.raw_data.id
+  bucket     = aws_s3_bucket.raw_data.id
   depends_on = [aws_s3_bucket_versioning.raw_data]
 
   rule {

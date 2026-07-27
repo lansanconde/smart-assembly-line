@@ -2,7 +2,7 @@
 # Un item par poste, écrasé à chaque message capteur
 resource "aws_dynamodb_table" "machine_state" {
   name         = "machine_state"
-  billing_mode = "PAY_PER_REQUEST"  # On-demand : facturation à la requête, pas de capacité à provisionner
+  billing_mode = "PAY_PER_REQUEST" # On-demand : facturation à la requête, pas de capacité à provisionner
 
 
 
@@ -11,7 +11,7 @@ resource "aws_dynamodb_table" "machine_state" {
 
   attribute {
     name = "id_poste"
-    type = "S"  # S = String
+    type = "S" # S = String
   }
 
   attribute {
@@ -27,7 +27,7 @@ resource "aws_dynamodb_table" "machine_state" {
 
   # Chiffrement at-rest avec clé KMS gérée par AWS
   server_side_encryption {
-    enabled = true
+    enabled     = true
     kms_key_arn = aws_kms_key.main.arn
   }
 

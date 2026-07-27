@@ -22,47 +22,47 @@ resource "aws_iam_role" "sfn_role" {
 }
 
 resource "aws_iam_role_policy" "sfn_policy" {
-    name = "smart-assembly-sfn-policy"
-    role = aws_iam_role.sfn_role.id
+  name = "smart-assembly-sfn-policy"
+  role = aws_iam_role.sfn_role.id
 
-    policy = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-            {
-            Sid      = "DynamoDB"
-            Effect   = "Allow"
-            Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
-            Resource = aws_dynamodb_table.machine_state.arn
-            },
-            {
-            Sid      = "KMS"
-            Effect   = "Allow"
-            Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
-            Resource = aws_kms_key.main.arn
-            },
-            {
-            Sid      = "InvokeLambda"
-            Effect   = "Allow"
-            Action   = "lambda:InvokeFunction"
-            Resource = aws_lambda_function.log_intervention.arn
-            },
-            {
-            Sid    = "CloudWatchLogs"
-            Effect = "Allow"
-            Action = [
-                "logs:CreateLogDelivery",
-                "logs:GetLogDelivery",
-                "logs:UpdateLogDelivery",
-                "logs:DeleteLogDelivery",
-                "logs:ListLogDeliveries",
-                "logs:PutResourcePolicy",
-                "logs:DescribeResourcePolicies",
-                "logs:DescribeLogGroups",
-            ]
-            Resource = "*"
-            }
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "DynamoDB"
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.machine_state.arn
+      },
+      {
+        Sid      = "KMS"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
+        Resource = aws_kms_key.main.arn
+      },
+      {
+        Sid      = "InvokeLambda"
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = aws_lambda_function.log_intervention.arn
+      },
+      {
+        Sid    = "CloudWatchLogs"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogDelivery",
+          "logs:GetLogDelivery",
+          "logs:UpdateLogDelivery",
+          "logs:DeleteLogDelivery",
+          "logs:ListLogDeliveries",
+          "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies",
+          "logs:DescribeLogGroups",
         ]
-    })
+        Resource = "*"
+      }
+    ]
+  })
 }
 
 # ──────────────────────────────────────────────
@@ -142,7 +142,7 @@ resource "aws_sfn_state_machine" "intervention_workflow" {
     }
   })
 
-   logging_configuration {          # ← ajoute ici
+  logging_configuration { # ← ajoute ici
     level                  = "ERROR"
     include_execution_data = true
     log_destination        = "${aws_cloudwatch_log_group.sfn_logs.arn}:*"

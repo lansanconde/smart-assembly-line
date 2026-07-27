@@ -9,9 +9,9 @@
 # ── S3 bucket dédié aux logs CloudTrail ─────────────────────
 resource "aws_s3_bucket" "cloudtrail_logs" {
   bucket        = "smart-assembly-cloudtrail-${data.aws_caller_identity.current.account_id}"
-  force_destroy = true   # lab uniquement — retirer en production
+  force_destroy = true # lab uniquement — retirer en production
 
-  tags = { Project = "smart-assembly-line"}
+  tags = { Project = "smart-assembly-line" }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail_logs" {
@@ -45,7 +45,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail_logs" {
     id     = "cloudtrail-retention"
     status = "Enabled"
 
-    filter {}  # applique la règle à tous les objets
+    filter {} # applique la règle à tous les objets
 
     transition {
       days          = 90
@@ -56,7 +56,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail_logs" {
       storage_class = "GLACIER"
     }
     expiration {
-      days = 2555  # 7 ans — conformité réglementaire aérospatiale
+      days = 2555 # 7 ans — conformité réglementaire aérospatiale
     }
   }
 }
@@ -69,11 +69,11 @@ resource "aws_s3_bucket_policy" "cloudtrail_logs" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AWSCloudTrailAclCheck"
-        Effect = "Allow"
+        Sid       = "AWSCloudTrailAclCheck"
+        Effect    = "Allow"
         Principal = { Service = "cloudtrail.amazonaws.com" }
-        Action   = "s3:GetBucketAcl"
-        Resource = aws_s3_bucket.cloudtrail_logs.arn
+        Action    = "s3:GetBucketAcl"
+        Resource  = aws_s3_bucket.cloudtrail_logs.arn
         Condition = {
           StringEquals = {
             "aws:SourceArn" = "arn:aws:cloudtrail:eu-west-3:${data.aws_caller_identity.current.account_id}:trail/smart-assembly-trail"
@@ -81,14 +81,14 @@ resource "aws_s3_bucket_policy" "cloudtrail_logs" {
         }
       },
       {
-        Sid    = "AWSCloudTrailWrite"
-        Effect = "Allow"
+        Sid       = "AWSCloudTrailWrite"
+        Effect    = "Allow"
         Principal = { Service = "cloudtrail.amazonaws.com" }
-        Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.cloudtrail_logs.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.cloudtrail_logs.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
         Condition = {
           StringEquals = {
-            "s3:x-amz-acl" = "bucket-owner-full-control"
+            "s3:x-amz-acl"  = "bucket-owner-full-control"
             "aws:SourceArn" = "arn:aws:cloudtrail:eu-west-3:${data.aws_caller_identity.current.account_id}:trail/smart-assembly-trail"
           }
         }
@@ -118,7 +118,7 @@ resource "aws_iam_role" "cloudtrail_cw" {
     }]
   })
 
-  tags = { Project = "smart-assembly-line"}
+  tags = { Project = "smart-assembly-line" }
 }
 
 resource "aws_iam_role_policy" "cloudtrail_cw" {
@@ -140,12 +140,12 @@ resource "aws_iam_role_policy" "cloudtrail_cw" {
 
 # ── Trail principal ──────────────────────────────────────────
 resource "aws_cloudtrail" "main" {
-  name                          = "smart-assembly-trail"
-  s3_bucket_name                = aws_s3_bucket.cloudtrail_logs.id
+  name           = "smart-assembly-trail"
+  s3_bucket_name = aws_s3_bucket.cloudtrail_logs.id
   # pas de s3_key_prefix : logs dans AWSLogs/<account>/ directement (correspond au bucket policy)
-  include_global_service_events = true   # IAM, STS, CloudFront (us-east-1)
-  is_multi_region_trail         = true   # toutes les régions
-  enable_log_file_validation    = true   # intégrité des logs (SHA-256)
+  include_global_service_events = true # IAM, STS, CloudFront (us-east-1)
+  is_multi_region_trail         = true # toutes les régions
+  enable_log_file_validation    = true # intégrité des logs (SHA-256)
   # kms_key_id omis : la key policy KMS existante n'autorise pas cloudtrail.amazonaws.com
   # Les logs S3 restent chiffrés via SSE-KMS du bucket (même clé)
   # En production : ajouter cloudtrail.amazonaws.com à la key policy
@@ -161,7 +161,7 @@ resource "aws_cloudtrail" "main" {
 
   depends_on = [aws_s3_bucket_policy.cloudtrail_logs]
 
-  tags = { Project = "smart-assembly-line"}
+  tags = { Project = "smart-assembly-line" }
 }
 
 # ── Metric Filter : modifications IAM ───────────────────────
@@ -186,7 +186,7 @@ resource "aws_cloudwatch_metric_alarm" "iam_changes" {
   namespace           = "SmartAssemblyLine/Security"
   metric_name         = "IamPolicyChanges"
   statistic           = "Sum"
-  period              = 300   # 5 minutes
+  period              = 300 # 5 minutes
   evaluation_periods  = 1
   datapoints_to_alarm = 1
   threshold           = 1
@@ -195,7 +195,7 @@ resource "aws_cloudwatch_metric_alarm" "iam_changes" {
 
   alarm_actions = [aws_sns_topic.alerts.arn]
 
-  tags = { Project = "smart-assembly-line"}
+  tags = { Project = "smart-assembly-line" }
 }
 
 # ── Metric Filter : désactivation CloudTrail (critique) ─────
@@ -227,7 +227,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudtrail_disabled" {
 
   alarm_actions = [aws_sns_topic.alerts.arn]
 
-  tags = { Project = "smart-assembly-line"}
+  tags = { Project = "smart-assembly-line" }
 }
 
 # ── Outputs ──────────────────────────────────────────────────
