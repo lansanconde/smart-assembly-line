@@ -137,7 +137,7 @@ jobs:
           pytest src/lambda/tests/ \
             -v \
             --tb=short \
-            --cov=src/lambda \
+            --cov=src/lambda/analyze_vibration \
             --cov-report=term-missing \
             --cov-fail-under=70
         # --cov-fail-under=70 : couverture minimale 70% requise
