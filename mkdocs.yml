@@ -64,4 +64,6 @@ nav:
   - Chaos Engineering:
     - "Axe 3 — Retry Storm": chaos/chaos_axe3.md
     - "Rapport Axe 3": chaos/rapport_chaos_axe3.md
+  - Observabilité & Sécurité:
+    - "CloudTrail — Audit & Traçabilité": observability/cloudtrail.md
   - Runbook: runbook/index.md
