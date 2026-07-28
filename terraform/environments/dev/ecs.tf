@@ -170,6 +170,12 @@ resource "aws_iam_role_policy" "supervision_api_task" {
         Effect   = "Allow"
         Action   = ["cloudwatch:DescribeAlarms", "cloudwatch:GetMetricData"]
         Resource = "*"
+      },
+      {
+        Sid      = "KMSDecryptDynamoDB"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:DescribeKey"]
+        Resource = "arn:aws:kms:eu-west-3:169237360990:key/7d2fd7d2-6d2a-4ce9-beb3-b61621aa90aa"
       }
     ]
   })
