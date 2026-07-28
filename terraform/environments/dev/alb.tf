@@ -50,25 +50,28 @@ resource "aws_lb" "main" {
 }
 
 # ──────────────────────────────────────────────
-# Target Group — cibles backend
+# Target Group — ECS Fargate (supervision-api)
+# target_type = "ip" obligatoire pour Fargate (awsvpc)
 # ──────────────────────────────────────────────
 
 resource "aws_lb_target_group" "backend" {
-  name     = "smart-assembly-backend-tg"
-  port     = 8080
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.main.id
+  name        = "smart-assembly-supervision-tg"
+  port        = 8080
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip" # Fargate utilise des IPs, pas des instance IDs
 
   health_check {
-    path                = "/health"
+    path                = "/actuator/health" # Spring Boot Actuator
     interval            = 30
     timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 3
+    matcher             = "200"
   }
 
   tags = {
-    Name        = "smart-assembly-backend-tg"
+    Name        = "smart-assembly-supervision-tg"
     Project     = "smart-assembly-line"
     Environment = "dev"
   }

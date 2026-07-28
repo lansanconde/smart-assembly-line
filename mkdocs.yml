@@ -66,4 +66,7 @@ nav:
     - "Rapport Axe 3": chaos/rapport_chaos_axe3.md
   - Observabilité & Sécurité:
     - "CloudTrail — Audit & Traçabilité": observability/cloudtrail.md
+
+  - API de Supervision :
+    - "API Spring Boot - Fargate": ecs/supervision.md
   - Runbook: runbook/index.md
