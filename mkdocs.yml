@@ -69,6 +69,8 @@ nav:
 
   - API de Supervision :
     - "API Spring Boot - Fargate": ecs/supervision.md
+  - ECS Auto Scaling:
+    - "ECS Auto Scaling": ecs/autoscaling.md
 
   - Dashboards & Visualisation:
     - CloudWatch Observabilité Unifiée : cloudwatch/dashboard.md
