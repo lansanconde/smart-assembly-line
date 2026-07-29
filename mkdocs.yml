@@ -151,6 +151,8 @@ nav:
           - CloudWatch Dashboard: cloudwatch/dashboard.md
           - CloudWatch Alarms: monitoring/alarms.md
           - "CloudTrail — Audit & Traçabilité": observability/cloudtrail.md
+          - "X-Ray — Distributed Tracing": observability/xray.md
+          - "Terraform X-Ray": observability/xray-terraform.md
       - Sécurité avancée:
           - "GuardDuty · Security Hub · Config": security/advanced-security.md
           - "Terraform sécurité": security/advanced-security-terraform.md
@@ -176,3 +178,4 @@ nav:
       - "Jour 45 — Architecture multi-site": runbooks/jour-45-multi-site.md
       - "Jour 46 — Architecture multi-région": runbooks/jour-46-multi-region.md
       - "Jour 47 — Sécurité avancée": runbooks/jour-47-advanced-security.md
+      - "Jour 48 — X-Ray Distributed Tracing": runbooks/jour-48-xray.md
