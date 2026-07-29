@@ -420,6 +420,71 @@
       .lightbox-prev, .lightbox-next { display: none; }
     }
 
+    /* ── API LIVE ── */
+    #api-live { background: var(--bg); }
+    .api-intro {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin-bottom: 2.5rem;
+    }
+    .api-live-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--accent3);
+      animation: pulse-live 2s ease-in-out infinite; flex-shrink: 0;
+    }
+    .api-live-label {
+      font-size: 0.8rem; font-weight: 700; color: var(--accent3);
+      letter-spacing: 0.08em;
+    }
+    .api-endpoints { display: flex; flex-direction: column; gap: 1rem; }
+    .api-endpoint {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .api-endpoint:hover {
+      border-color: var(--accent3);
+      box-shadow: 0 0 20px rgba(16,185,129,0.12);
+    }
+    .api-endpoint-header {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+      flex-wrap: wrap; gap: 0.75rem;
+    }
+    .http-method {
+      font-size: 0.72rem; font-weight: 800; letter-spacing: 0.1em;
+      padding: 0.25rem 0.7rem; border-radius: 5px;
+      background: rgba(16,185,129,0.15); color: var(--accent3);
+      border: 1px solid rgba(16,185,129,0.3); flex-shrink: 0;
+    }
+    .api-path {
+      font-family: 'Courier New', monospace; font-size: 0.88rem;
+      color: var(--text); flex: 1;
+    }
+    .api-path em { color: var(--accent2); font-style: normal; }
+    .btn-try {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.9rem; border-radius: 6px; font-size: 0.75rem;
+      font-weight: 700; border: 1px solid rgba(16,185,129,0.35);
+      color: var(--accent3); background: rgba(16,185,129,0.08);
+      transition: all .2s; white-space: nowrap;
+    }
+    .btn-try:hover {
+      background: rgba(16,185,129,0.18); color: var(--accent3);
+      border-color: var(--accent3); transform: translateY(-1px);
+    }
+    .api-endpoint-body { padding: 0.9rem 1.25rem; }
+    .api-desc { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.6rem; }
+    .api-returns {
+      font-size: 0.75rem; color: #475569;
+      font-family: 'Courier New', monospace;
+    }
+    .api-returns strong { color: var(--accent2); }
+    .api-notice {
+      margin-top: 2rem; padding: 0.9rem 1.25rem;
+      background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 10px; font-size: 0.8rem; color: var(--muted);
+    }
+    .api-notice strong { color: var(--accent2); }
+
     /* ── À PROPOS ── */
     #apropos { background: var(--bg); }
     .apropos-inner {
@@ -771,6 +836,7 @@
     <a href="#chaos"        class="nav-close">Chaos</a>
     <a href="#cicd"         class="nav-close">CI/CD</a>
     <a href="#metrics"      class="nav-close">Métriques</a>
+    <a href="#api-live"     class="nav-close">API Live</a>
     <a href="#screenshots"  class="nav-close">Preuves AWS</a>
   </div>
   <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
@@ -1246,7 +1312,15 @@
         <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>CloudWatch Dashboard</div>
         <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>CloudWatch Alarms</div>
         <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>CloudTrail</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>X-Ray Distributed Tracing</div>
         <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>Container Insights</div>
+      </div>
+      <div class="stack-group">
+        <div class="stack-group-title">Sécurité avancée</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#ef4444;"></div>GuardDuty (MEDIUM/HIGH)</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#ef4444;"></div>Security Hub (FSBP + CIS)</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#ef4444;"></div>AWS Config (7 règles)</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#ef4444;"></div>Lambda remediation auto</div>
       </div>
       <div class="stack-group">
         <div class="stack-group-title">IaC & CI/CD</div>
@@ -1296,6 +1370,21 @@
         <div class="metric-val" style="color:var(--accent);">5</div>
         <div class="metric-lbl">scénarios chaos testés</div>
         <div class="metric-sub">IoT down · Lambda throttle · EventBridge delay · SQS burst · DynamoDB throttle</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:var(--accent3);">104 ms</div>
+        <div class="metric-lbl">latence end-to-end</div>
+        <div class="metric-sub">Vibration → alerte · mesuré par X-Ray Distributed Tracing</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:#ef4444;">&lt; 5 min</div>
+        <div class="metric-lbl">RTO — Disaster Recovery</div>
+        <div class="metric-sub">Route 53 Failover · Health check × 3 → eu-central-1</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:#a78bfa;">&lt; 1 s</div>
+        <div class="metric-lbl">RPO — DynamoDB Global Tables</div>
+        <div class="metric-sub">Réplication sous-seconde eu-west-3 → eu-central-1 · Last Write Wins</div>
       </div>
     </div>
   </div>
@@ -1523,6 +1612,83 @@
     if (e.key === 'ArrowRight') navigate(1);
   });
 </script>
+
+<!-- ═══════════════════════════════════════════════ API LIVE -->
+<section id="api-live">
+  <div class="container">
+    <div class="section-label">API de supervision</div>
+    <h2 class="section-title">Endpoints live — Spring Boot sur ECS Fargate</h2>
+    <p class="section-desc">
+      L'API REST de supervision est déployée sur ECS Fargate (eu-west-3) et exposée via CloudFront.
+      Elle interroge DynamoDB en temps réel pour restituer l'état des postes d'assemblage.
+    </p>
+
+    <div class="api-intro">
+      <div class="api-live-dot"></div>
+      <div class="api-live-label">LIVE · eu-west-3 · supervision-api v1</div>
+    </div>
+
+    <div class="api-endpoints">
+
+      <!-- Endpoint 1 -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="http-method">GET</span>
+          <span class="api-path">/api/machines</span>
+          <a class="btn-try" href="https://dv03heuf7nfn6.cloudfront.net/api/machines" target="_blank" rel="noopener">
+            ↗ Tester
+          </a>
+        </div>
+        <div class="api-endpoint-body">
+          <div class="api-desc">Liste l'état temps réel de tous les postes de travail supervisés.</div>
+          <div class="api-returns">
+            → <strong>200 OK</strong> · Array&lt;MachineState&gt; · champs : idPoste, statut, capteur, valeur, timestamp
+          </div>
+        </div>
+      </div>
+
+      <!-- Endpoint 2 -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="http-method">GET</span>
+          <span class="api-path">/api/machines/<em>{idPoste}</em></span>
+          <a class="btn-try" href="https://dv03heuf7nfn6.cloudfront.net/api/machines/poste_1" target="_blank" rel="noopener">
+            ↗ Tester (poste_1)
+          </a>
+        </div>
+        <div class="api-endpoint-body">
+          <div class="api-desc">Détail d'un poste par son identifiant — état DynamoDB lu en < 10 ms.</div>
+          <div class="api-returns">
+            → <strong>200 OK</strong> · MachineState · <strong>404</strong> si poste inconnu
+          </div>
+        </div>
+      </div>
+
+      <!-- Endpoint 3 -->
+      <div class="api-endpoint">
+        <div class="api-endpoint-header">
+          <span class="http-method">GET</span>
+          <span class="api-path">/api/alerts</span>
+          <a class="btn-try" href="https://dv03heuf7nfn6.cloudfront.net/api/alerts" target="_blank" rel="noopener">
+            ↗ Tester
+          </a>
+        </div>
+        <div class="api-endpoint-body">
+          <div class="api-desc">Postes actuellement en anomalie (statut WARN ou CRITICAL) — vue opérationnelle temps réel.</div>
+          <div class="api-returns">
+            → <strong>200 OK</strong> · { count: number, alerts: Array&lt;MachineState&gt; }
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="api-notice">
+      <strong>Stack :</strong> Spring Boot 3 · Java 21 · ECS Fargate · DynamoDB (GSI statut-index) · ALB multi-AZ · X-Ray distributed tracing ·
+      Accès CloudFront disponible jusqu'en décembre 2026 — arrêt automatique programmé.
+    </div>
+  </div>
+</section>
 
 <!-- ═══════════════════════════════════════════════ À PROPOS -->
 <section id="apropos">
