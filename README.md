@@ -256,9 +256,6 @@ Ce projet est conçu pour répondre aux questions de **System Design niveau Staf
 
 > *"Design a real-time monitoring system for 100,000 industrial IoT sensors across multiple sites."*
 
-
-```Réponse structurée : **[Template 5 minutes →](docs/architecture/synthese-finale.md#8-réponse-system-design--template-entretien)**
-
 ---
 
 *Projet fil rouge conçu pour démontrer une maîtrise opérationnelle de l'architecture AWS en contexte industriel critique — Industrie 4.0/5.0*
