@@ -69,4 +69,7 @@ nav:
 
   - API de Supervision :
     - "API Spring Boot - Fargate": ecs/supervision.md
-  - Runbook: runbook/index.md
+
+  - Dashboards & Visualisation:
+    - CloudWatch Observabilité Unifiée : cloudwatch/dashboard.md
+  - Runbook: runbook/index.md 
