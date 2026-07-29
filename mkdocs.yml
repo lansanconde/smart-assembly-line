@@ -156,9 +156,13 @@ nav:
       - "Canary — ALB Weighted Target Groups": deployment/canary.md
       - "CI/CD — GitHub Actions": cicd/cicd.md
 
+  - Cost Optimization:
+      - "CAPEX / OPEX / ROI": cost/cost-optimization.md
+
   - Runbooks:
       - Administration & Ops: runbook/index.md
       - "Jour 40 — CloudWatch Dashboard": runbooks/jour-40-cloudwatch-dashboard.md
       - "Jour 41 — ECS Auto Scaling": runbooks/jour-41-ecs-autoscaling.md
       - "Jour 42 — Canary Deployment": runbooks/jour-42-canary-deployment.md
       - "Jour 43 — Portfolio AWS": runbooks/jour-43-portfolio.md
+      - "Jour 44 — Cost Optimization": runbooks/jour-44-cost-optimization.md
