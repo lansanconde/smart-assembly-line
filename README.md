@@ -204,7 +204,7 @@ mkdocs serve       # http://localhost:8000
 mkdocs build       # génère le site statique
 ```
 
-📚 **Documentation en ligne** : [GitHub Pages](https://lansanconde.github.io/smart-assembly-line/)
+📚 **Documentation en ligne** : [GitHub Pages](https://github.com/lansanconde/smart-assembly-line.git)
 
 ---
 
