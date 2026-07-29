@@ -128,7 +128,7 @@ extra:
   generator: false
 
 # ─────────────────────────────────────────
-# NAVIGATION — Structure logique du projet
+# NAVIGATION — 6 onglets max pour Material tabs
 # ─────────────────────────────────────────
 nav:
   - Accueil: index.md
@@ -143,22 +143,25 @@ nav:
       - "Multi-région — Active/Passive": architecture/multi-region.md
       - "Terraform multi-région": architecture/multi-region-terraform.md
 
-  - IoT & Containers:
-      - "supervision-api — ECS Fargate": ecs/supervision.md
-      - ECS Auto Scaling: ecs/autoscaling.md
+  - Services AWS:
+      - IoT & Containers:
+          - "supervision-api — ECS Fargate": ecs/supervision.md
+          - ECS Auto Scaling: ecs/autoscaling.md
+      - Observabilité:
+          - CloudWatch Dashboard: cloudwatch/dashboard.md
+          - CloudWatch Alarms: monitoring/alarms.md
+          - "CloudTrail — Audit & Traçabilité": observability/cloudtrail.md
+      - Sécurité avancée:
+          - "GuardDuty · Security Hub · Config": security/advanced-security.md
+          - "Terraform sécurité": security/advanced-security-terraform.md
 
-  - Observabilité:
-      - CloudWatch Dashboard: cloudwatch/dashboard.md
-      - CloudWatch Alarms: monitoring/alarms.md
-      - "CloudTrail — Audit & Traçabilité": observability/cloudtrail.md
-
-  - Résilience & Chaos:
-      - "Axe 3 — Retry Storm": chaos/chaos_axe3.md
-      - Rapport d'expérience: chaos/rapport_chaos_axe3.md
-
-  - Déploiement:
-      - "Canary — ALB Weighted Target Groups": deployment/canary.md
-      - "CI/CD — GitHub Actions": cicd/cicd.md
+  - Résilience & Déploiement:
+      - Résilience & Chaos:
+          - "Axe 3 — Retry Storm": chaos/chaos_axe3.md
+          - Rapport d'expérience: chaos/rapport_chaos_axe3.md
+      - Déploiement:
+          - "Canary — ALB Weighted Target Groups": deployment/canary.md
+          - "CI/CD — GitHub Actions": cicd/cicd.md
 
   - Cost Optimization:
       - "CAPEX / OPEX / ROI": cost/cost-optimization.md
@@ -172,3 +175,4 @@ nav:
       - "Jour 44 — Cost Optimization": runbooks/jour-44-cost-optimization.md
       - "Jour 45 — Architecture multi-site": runbooks/jour-45-multi-site.md
       - "Jour 46 — Architecture multi-région": runbooks/jour-46-multi-region.md
+      - "Jour 47 — Sécurité avancée": runbooks/jour-47-advanced-security.md
