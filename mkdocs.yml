@@ -140,6 +140,8 @@ nav:
       - Consolidation des axes: architecture/consolidation.md
       - "Multi-site — 100K capteurs": architecture/multi-site.md
       - "Modèle de données multi-site": architecture/multi-site-data-model.md
+      - "Multi-région — Active/Passive": architecture/multi-region.md
+      - "Terraform multi-région": architecture/multi-region-terraform.md
 
   - IoT & Containers:
       - "supervision-api — ECS Fargate": ecs/supervision.md
@@ -169,3 +171,4 @@ nav:
       - "Jour 43 — Portfolio AWS": runbooks/jour-43-portfolio.md
       - "Jour 44 — Cost Optimization": runbooks/jour-44-cost-optimization.md
       - "Jour 45 — Architecture multi-site": runbooks/jour-45-multi-site.md
+      - "Jour 46 — Architecture multi-région": runbooks/jour-46-multi-region.md
