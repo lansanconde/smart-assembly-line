@@ -1,34 +1,76 @@
-site_name: Smart Assembly Line — Documentation
-site_description: Système IoT industriel AWS — Ligne d'assemblage aérospatiale intelligente
+site_name: Smart Assembly Line
+site_description: >
+  Système de supervision industrielle IoT temps réel sur AWS —
+  Architecture event-driven, edge computing Greengrass, résilience chaos-tested,
+  entièrement provisionné en Terraform. Niveau Staff Architect.
 site_author: Lansana CONDÉ
+site_url: https://lansanconde.github.io/smart-assembly-line/
 docs_dir: docs
+repo_name: lansanconde/smart-assembly-line
+repo_url: https://github.com/lansanconde/smart-assembly-line
+edit_uri: ""
 
-extra_css:
-  - stylesheets/extra.css
+copyright: >
+  © 2026 Lansana CONDÉ · Smart Aerospace Assembly Line · AWS Staff Architect
 
+# ─────────────────────────────────────────
+# THEME — Material for MkDocs
+# ─────────────────────────────────────────
 theme:
   name: material
   language: fr
-  palette:
-    - scheme: default
-      primary: indigo
-      accent: blue
-      toggle:
-        icon: material/brightness-7
-        name: Mode sombre
-    - scheme: slate
-      primary: indigo
-      accent: blue
-      toggle:
-        icon: material/brightness-4
-        name: Mode clair
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.top
-    - content.code.copy
-    - toc.integrate
 
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Passer en mode sombre
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Passer en mode clair
+
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+  features:
+    # Navigation
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.tracking
+    - navigation.instant
+    - navigation.instant.progress
+    # Recherche
+    - search.highlight
+    - search.share
+    - search.suggest
+    # Contenu
+    - content.code.copy
+    - content.code.annotate
+    - content.tooltips
+    - content.tabs.link
+    # TOC
+    - toc.follow
+
+# ─────────────────────────────────────────
+# CSS PERSONNALISÉ
+# ─────────────────────────────────────────
+extra_css:
+  - stylesheets/extra.css
+
+# ─────────────────────────────────────────
+# EXTENSIONS MARKDOWN
+# ─────────────────────────────────────────
 markdown_extensions:
   - pymdownx.superfences:
       custom_fences:
@@ -37,44 +79,86 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
   - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.critic
   - admonition
   - pymdownx.details
   - attr_list
+  - md_in_html
+  - def_list
+  - tables
+  - footnotes
   - toc:
       permalink: true
+      title: Sur cette page
 
+# ─────────────────────────────────────────
+# PLUGINS
+# ─────────────────────────────────────────
 plugins:
-  - search
+  - search:
+      lang: fr
+      separator: '[\s\-\.]+'
 
+# ─────────────────────────────────────────
+# EXTRA — Réseaux sociaux
+# ─────────────────────────────────────────
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/lansanconde/smart-assembly-line
+      name: GitHub — smart-assembly-line
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/lansana-conde
+      name: LinkedIn — Lansana CONDÉ
+    - icon: fontawesome/solid/globe
+      link: https://do1vmragia1j9.cloudfront.net
+      name: Portfolio en ligne
+  generator: false
+
+# ─────────────────────────────────────────
+# NAVIGATION — Structure logique du projet
+# ─────────────────────────────────────────
 nav:
   - Accueil: index.md
+
   - Architecture:
-    - Vue globale: architecture/global.md
-    - Par composant: architecture/components.md
-    - Sécurité: architecture/security.md
-    - Consolidation 3 axes: architecture/consolidation.md
-  - ML / TinyML:
-    - TinyML Edge: ml/tinyml.md
-    - Model Card: ml/models/model_card.md
-  - Monitoring:
-    - IoT SiteWise (théorie): monitoring/sitewise.md
-    - Amazon Managed Grafana: monitoring/grafana.md
-    - Alarms + SNS: monitoring/alarms.md
-  - Chaos Engineering:
-    - "Axe 3 — Retry Storm": chaos/chaos_axe3.md
-    - "Rapport Axe 3": chaos/rapport_chaos_axe3.md
-  - Observabilité & Sécurité:
-    - "CloudTrail — Audit & Traçabilité": observability/cloudtrail.md
+      - Vue d'ensemble: architecture/global.md
+      - Composants & Services: architecture/components.md
+      - Sécurité & IAM: architecture/security.md
+      - Consolidation des axes: architecture/consolidation.md
 
-  - API de Supervision :
-    - "API Spring Boot - Fargate": ecs/supervision.md
-  - ECS Auto Scaling:
-    - "ECS Auto Scaling": ecs/autoscaling.md
+  - IoT & Containers:
+      - "supervision-api — ECS Fargate": ecs/supervision.md
+      - ECS Auto Scaling: ecs/autoscaling.md
 
-  - Dashboards & Visualisation:
-    - CloudWatch Observabilité Unifiée : cloudwatch/dashboard.md
-  - Deploiement :
-    - canary : deployment/canary.md
-    - GitHub Actions : cicd/github-actions.md
-  - Runbook: runbook/index.md 
+  - Observabilité:
+      - CloudWatch Dashboard: cloudwatch/dashboard.md
+      - CloudWatch Alarms: monitoring/alarms.md
+      - "CloudTrail — Audit & Traçabilité": observability/cloudtrail.md
+
+  - Résilience & Chaos:
+      - "Axe 3 — Retry Storm": chaos/chaos_axe3.md
+      - Rapport d'expérience: chaos/rapport_chaos_axe3.md
+
+  - Déploiement:
+      - "Canary — ALB Weighted Target Groups": deployment/canary.md
+      - "CI/CD — GitHub Actions": cicd/cicd.md
+
+  - Runbooks:
+      - Administration & Ops: runbook/index.md
+      - "Jour 40 — CloudWatch Dashboard": runbooks/jour-40-cloudwatch-dashboard.md
+      - "Jour 41 — ECS Auto Scaling": runbooks/jour-41-ecs-autoscaling.md
+      - "Jour 42 — Canary Deployment": runbooks/jour-42-canary-deployment.md
+      - "Jour 43 — Portfolio AWS": runbooks/jour-43-portfolio.md

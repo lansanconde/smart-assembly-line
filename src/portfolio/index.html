@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Aerospace Assembly Line — Lansana CONDÉ</title>
+  <style>
+    :root {
+      --bg:        #0a0e1a;
+      --surface:   #111827;
+      --surface2:  #1a2235;
+      --border:    #1e2d45;
+      --accent:    #f97316;
+      --accent2:   #3b82f6;
+      --accent3:   #10b981;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --code-bg:   #0f172a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent2); text-decoration: none; }
+    a:hover { color: var(--accent); }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,14,26,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-brand { font-weight: 700; font-size: 1rem; color: var(--accent); letter-spacing: 0.05em; }
+    .nav-links { display: flex; gap: 1.5rem; }
+    .nav-links a { font-size: 0.85rem; color: var(--muted); transition: color .2s; }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 5rem 2rem 4rem;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(59,130,246,0.08) 0%, transparent 70%),
+                  radial-gradient(ellipse 60% 40% at 80% 80%, rgba(249,115,22,0.06) 0%, transparent 60%);
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(30,45,69,0.4) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30,45,69,0.4) 1px, transparent 1px);
+      background-size: 40px 40px;
+      mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+    }
+    /* ── Hero 2-colonnes : photo gauche · texte droite ── */
+    .hero-inner {
+      position: relative; z-index: 1;
+      display: grid; grid-template-columns: auto 1fr;
+      align-items: center; gap: 4rem;
+      max-width: 1100px; width: 100%;
+    }
+    /* Colonne photo */
+    .hero-photo-col { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+    .hero-photo {
+      width: 200px; height: 200px; border-radius: 50%; object-fit: cover;
+      border: 3px solid rgba(59,130,246,0.5);
+      box-shadow: 0 0 0 8px rgba(59,130,246,0.08), 0 20px 60px rgba(0,0,0,0.4);
+      flex-shrink: 0;
+    }
+    .hero-photo-name { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .hero-photo-role { font-size: 0.78rem; color: var(--muted); text-align: center; line-height: 1.4; }
+    /* Colonne texte */
+    .hero-content { position: relative; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3);
+      color: var(--accent2); font-size: 0.75rem; font-weight: 600;
+      padding: 0.3rem 0.9rem; border-radius: 99px; margin-bottom: 1.5rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .hero h1 {
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      font-weight: 800; line-height: 1.1; margin-bottom: 1rem;
+      background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero h1 span {
+      background: linear-gradient(135deg, var(--accent) 0%, #fb923c 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      font-size: 1.05rem; color: var(--muted); max-width: 560px;
+      margin-bottom: 2rem; line-height: 1.65;
+    }
+    .hero-meta {
+      display: flex; gap: 2rem; flex-wrap: wrap;
+      margin-bottom: 2.5rem;
+    }
+    .hero-meta-item { text-align: left; }
+    .hero-meta-item .val {
+      display: block; font-size: 1.6rem; font-weight: 800; color: var(--accent);
+    }
+    .hero-meta-item .lbl { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero-cta { display: flex; gap: 1rem; flex-wrap: wrap; }
+    /* Mobile : revenir en colonne unique centrée */
+    @media (max-width: 768px) {
+      .hero-inner { grid-template-columns: 1fr; justify-items: center; gap: 2.5rem; text-align: center; }
+      .hero-meta { justify-content: center; }
+      .hero-meta-item { text-align: center; }
+      .hero-cta { justify-content: center; }
+      .hero-sub { max-width: 100%; }
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.65rem 1.5rem; border-radius: 8px;
+      font-size: 0.9rem; font-weight: 600; transition: all .2s; cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--accent); color: white;
+    }
+    .btn-primary:hover { background: #ea6c0a; color: white; transform: translateY(-1px); }
+    .btn-outline {
+      border: 1px solid var(--border); color: var(--text);
+      background: rgba(255,255,255,0.03);
+    }
+    .btn-outline:hover { border-color: var(--accent2); color: var(--accent2); transform: translateY(-1px); }
+
+    /* ── SECTIONS ── */
+    section { padding: 5rem 2rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.15em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.5rem;
+    }
+    .section-title {
+      font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800;
+      margin-bottom: 0.75rem; color: var(--text);
+    }
+    .section-desc { color: var(--muted); max-width: 620px; margin-bottom: 3rem; }
+
+    /* ── ARCHITECTURE ── */
+    #architecture { background: var(--surface); }
+    .arch-diagram {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 2rem;
+      font-family: 'Courier New', monospace; font-size: 0.8rem;
+      color: #64748b; overflow-x: auto; line-height: 1.9;
+    }
+    .arch-diagram .hl-orange { color: var(--accent); font-weight: 700; }
+    .arch-diagram .hl-blue   { color: var(--accent2); font-weight: 700; }
+    .arch-diagram .hl-green  { color: var(--accent3); font-weight: 700; }
+    .arch-diagram .hl-purple { color: #a78bfa; font-weight: 700; }
+    .arch-diagram .hl-yellow { color: #fbbf24; font-weight: 700; }
+
+    .arch-layers {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem; margin-top: 2rem;
+    }
+    .arch-layer {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.25rem;
+    }
+    .arch-layer-title {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; margin-bottom: 0.75rem;
+    }
+    .arch-layer-title.orange { color: var(--accent); }
+    .arch-layer-title.blue   { color: var(--accent2); }
+    .arch-layer-title.green  { color: var(--accent3); }
+    .arch-layer-title.purple { color: #a78bfa; }
+    .service-tag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      padding: 0.2rem 0.55rem; border-radius: 5px; margin: 0.2rem;
+    }
+    .tag-orange { background: rgba(249,115,22,0.12); color: var(--accent); border: 1px solid rgba(249,115,22,0.25); }
+    .tag-blue   { background: rgba(59,130,246,0.12);  color: var(--accent2); border: 1px solid rgba(59,130,246,0.25); }
+    .tag-green  { background: rgba(16,185,129,0.12);  color: var(--accent3); border: 1px solid rgba(16,185,129,0.25); }
+    .tag-purple { background: rgba(167,139,250,0.12); color: #a78bfa;        border: 1px solid rgba(167,139,250,0.25); }
+    .tag-yellow { background: rgba(251,191,36,0.12);  color: #fbbf24;        border: 1px solid rgba(251,191,36,0.25); }
+
+    /* ── PATTERNS RÉSILIENCE ── */
+    #resilience { background: var(--bg); }
+    .patterns-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem;
+    }
+    .pattern-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem;
+      transition: border-color .2s, transform .2s;
+    }
+    .pattern-card:hover { border-color: var(--accent2); transform: translateY(-2px); }
+    .pattern-icon { font-size: 1.8rem; margin-bottom: 0.75rem; }
+    .pattern-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .pattern-desc { font-size: 0.85rem; color: var(--muted); }
+    .pattern-tag {
+      display: inline-block; margin-top: 0.75rem;
+      font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.6rem;
+      border-radius: 5px; background: rgba(59,130,246,0.1);
+      color: var(--accent2); border: 1px solid rgba(59,130,246,0.2);
+    }
+
+    /* ── CHAOS ── */
+    #chaos { background: var(--surface); }
+    .chaos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+    .chaos-card {
+      background: var(--code-bg); border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 10px; padding: 1.25rem;
+    }
+    .chaos-card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .chaos-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; flex-shrink: 0; }
+    .chaos-scenario { font-size: 0.85rem; font-weight: 700; color: #ef4444; }
+    .chaos-detail { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .chaos-recovery { font-size: 0.78rem; color: var(--accent3); }
+    .chaos-recovery::before { content: '↺ '; }
+
+    /* ── CICD ── */
+    #cicd { background: var(--bg); }
+    .pipeline {
+      display: flex; gap: 0; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .pipeline-stage {
+      flex: 1; min-width: 140px; padding: 1.25rem 1rem;
+      text-align: center; position: relative;
+      border-right: 1px solid var(--border);
+    }
+    .pipeline-stage:last-child { border-right: none; }
+    .pipeline-stage::after {
+      content: '›'; position: absolute; right: -10px; top: 50%; transform: translateY(-50%);
+      font-size: 1.2rem; color: var(--muted); z-index: 1;
+    }
+    .pipeline-stage:last-child::after { display: none; }
+    .pipeline-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 50%;
+      font-size: 0.75rem; font-weight: 800; margin-bottom: 0.5rem;
+    }
+    .pipeline-stage-name { font-size: 0.8rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .pipeline-stage-detail { font-size: 0.7rem; color: var(--muted); }
+
+    /* ── STACK ── */
+    #stack { background: var(--surface); }
+    .stack-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+    .stack-group { }
+    .stack-group-title {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem;
+      padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+    }
+    .stack-item {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.85rem; padding: 0.35rem 0; color: var(--text);
+    }
+    .stack-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── METRICS ── */
+    #metrics { background: var(--bg); }
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    .metric-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem; text-align: center;
+    }
+    .metric-val { font-size: 2.2rem; font-weight: 800; }
+    .metric-lbl { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+    .metric-sub { font-size: 0.7rem; color: var(--muted); margin-top: 0.5rem; }
+
+    /* ── MARQUEE DÉFILANT ── */
+    .marquee-section {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 0;
+      overflow: hidden;
+    }
+    .marquee-label {
+      text-align: center;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+    .marquee-track {
+      display: flex; gap: 1rem;
+      width: max-content;
+      animation: marquee-scroll 40s linear infinite;
+    }
+    .marquee-track:hover { animation-play-state: paused; }
+    .marquee-row { overflow: hidden; }
+    .marquee-row + .marquee-row { margin-top: 0.75rem; }
+    .marquee-row:nth-child(2) .marquee-track {
+      animation-direction: reverse;
+      animation-duration: 50s;
+    }
+    @keyframes marquee-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    .marquee-card {
+      flex-shrink: 0; position: relative;
+      width: 260px; border-radius: 10px; overflow: hidden;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color .2s, transform .2s;
+    }
+    .marquee-card:hover {
+      border-color: var(--accent2);
+      transform: scale(1.03);
+    }
+    .marquee-card img {
+      width: 100%; height: 145px;
+      object-fit: cover; object-position: top;
+      display: block;
+    }
+    .marquee-card-info {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 0.4rem 0.65rem;
+      background: linear-gradient(to top, rgba(10,14,26,0.95) 0%, transparent 100%);
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .marquee-card-info .ss-badge { font-size: 0.62rem; }
+    .marquee-card-title { font-size: 0.72rem; color: #cbd5e1; line-height: 1.2; }
+
+    /* ── SCREENSHOTS / PREUVES AWS ── */
+    #screenshots { background: var(--surface); }
+
+    /* Filtres par catégorie */
+    .ss-filters {
+      display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 2rem;
+    }
+    .ss-filter {
+      padding: 0.35rem 1rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+      border: 1px solid var(--border); background: transparent; color: var(--muted);
+      cursor: pointer; transition: all .2s;
+    }
+    .ss-filter:hover { border-color: var(--accent2); color: var(--accent2); }
+    .ss-filter.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+
+    /* Grille de cards */
+    .ss-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.25rem;
+    }
+    .ss-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden; cursor: pointer;
+      transition: transform .2s, border-color .2s, box-shadow .2s;
+    }
+    .ss-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent2);
+      box-shadow: 0 8px 30px rgba(59,130,246,0.15);
+    }
+    .ss-card-img {
+      width: 100%; aspect-ratio: 16/9; object-fit: cover; object-position: top;
+      display: block;
+      border-bottom: 1px solid var(--border);
+    }
+    .ss-card-body { padding: 0.9rem 1rem; display: flex; align-items: center; gap: 0.75rem; }
+    .ss-badge {
+      font-size: 0.68rem; font-weight: 700; padding: 0.2rem 0.6rem;
+      border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+    }
+    .badge-cw   { background: rgba(249,115,22,.15); color: #fb923c; }
+    .badge-ecs  { background: rgba(59,130,246,.15);  color: #60a5fa; }
+    .badge-eb   { background: rgba(167,139,250,.15); color: #a78bfa; }
+    .badge-iot  { background: rgba(16,185,129,.15);  color: #34d399; }
+    .badge-sf   { background: rgba(236,72,153,.15);  color: #f472b6; }
+    .badge-alb  { background: rgba(234,179,8,.15);   color: #fbbf24; }
+    .badge-ci   { background: rgba(99,102,241,.15);  color: #818cf8; }
+    .badge-s3     { background: rgba(16,185,129,.15);  color: #34d399; }
+    .badge-dynamo { background: rgba(234,179,8,.15);   color: #fbbf24; }
+    .ss-card-title { font-size: 0.83rem; color: var(--text); font-weight: 500; line-height: 1.3; }
+
+    /* Lightbox */
+    .lightbox {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.92); backdrop-filter: blur(6px);
+      align-items: center; justify-content: center; padding: 2rem;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox-inner { position: relative; max-width: 1200px; width: 100%; }
+    .lightbox img {
+      width: 100%; border-radius: 10px;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+      border: 1px solid var(--border);
+    }
+    .lightbox-caption {
+      text-align: center; margin-top: 1rem;
+      font-size: 0.85rem; color: var(--muted);
+    }
+    .lightbox-close {
+      position: absolute; top: -2.5rem; right: 0;
+      background: none; border: none; color: var(--muted);
+      font-size: 1.5rem; cursor: pointer; line-height: 1;
+    }
+    .lightbox-close:hover { color: var(--text); }
+    .lightbox-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(255,255,255,0.08); border: 1px solid var(--border);
+      color: var(--text); font-size: 1.4rem; padding: 0.5rem 0.9rem;
+      border-radius: 8px; cursor: pointer; transition: background .2s;
+    }
+    .lightbox-nav:hover { background: rgba(255,255,255,0.18); }
+    .lightbox-prev { left: -3.5rem; }
+    .lightbox-next { right: -3.5rem; }
+    @media (max-width: 768px) {
+      .lightbox-prev, .lightbox-next { display: none; }
+    }
+
+    /* ── À PROPOS ── */
+    #apropos { background: var(--bg); }
+    .apropos-inner {
+      display: flex; align-items: center; gap: 3rem; flex-wrap: wrap;
+    }
+    .apropos-photo {
+      width: 180px; height: 180px; border-radius: 50%; object-fit: cover;
+      border: 4px solid var(--accent); flex-shrink: 0;
+      box-shadow: 0 0 0 8px rgba(59,130,246,0.12);
+    }
+    .apropos-text h3 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .apropos-text .role-badge {
+      display: inline-block; background: rgba(59,130,246,0.15); color: var(--accent);
+      font-size: 0.8rem; font-weight: 600; padding: 0.25rem 0.75rem;
+      border-radius: 999px; margin-bottom: 1rem;
+    }
+    .apropos-text p { color: var(--muted); line-height: 1.7; max-width: 550px; }
+    @media (max-width: 640px) {
+      .apropos-inner { flex-direction: column; align-items: center; text-align: center; }
+      .apropos-text p { max-width: 100%; }
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem; text-align: center;
+    }
+    .footer-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.3rem; }
+    .footer-role { font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem; }
+    .footer-links { display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; }
+    .footer-links a { font-size: 0.85rem; color: var(--muted); transition: color .2s; }
+    .footer-links a:hover { color: var(--accent); }
+    .footer-copy { margin-top: 1.5rem; font-size: 0.75rem; color: #334155; }
+
+
+    /* ══════════════════════════════════════════════════════════
+       INDUSTRY 4.0 — EFFETS VISUELS
+    ══════════════════════════════════════════════════════════ */
+
+    /* Variables glow */
+    :root {
+      --glow-blue:   0 0 20px rgba(59,130,246,0.35);
+      --glow-orange: 0 0 20px rgba(249,115,22,0.35);
+      --glow-green:  0 0 20px rgba(16,185,129,0.3);
+      --scan-color:  rgba(59,130,246,0.03);
+    }
+
+    /* Scan-line overlay sur le hero */
+    .hero::after {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        var(--scan-color) 2px,
+        var(--scan-color) 4px
+      );
+      animation: scan-move 8s linear infinite;
+      opacity: 0.4;
+    }
+    @keyframes scan-move {
+      from { background-position: 0 0; }
+      to   { background-position: 0 100px; }
+    }
+
+    /* Cadres HUD (coin) sur les section-label */
+    .section-label {
+      position: relative; padding-left: 1rem;
+    }
+    .section-label::before {
+      content: '';
+      position: absolute; left: 0; top: 0;
+      width: 8px; height: 8px;
+      border-left: 2px solid var(--accent);
+      border-top: 2px solid var(--accent);
+    }
+
+    /* Live pulse sur le badge hero */
+    .hero-badge span {
+      display: inline-block;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--accent3);
+      box-shadow: 0 0 0 0 rgba(16,185,129,0.6);
+      animation: pulse-live 2s ease-in-out infinite;
+    }
+    @keyframes pulse-live {
+      0%   { box-shadow: 0 0 0 0   rgba(16,185,129,0.6); }
+      70%  { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0   rgba(16,185,129,0); }
+    }
+
+    /* Glow sur les metric cards */
+    .metric-card:hover {
+      border-color: var(--accent2);
+      box-shadow: var(--glow-blue);
+      transform: translateY(-2px);
+    }
+    .metric-card { transition: all .25s; }
+    .metric-val { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+    /* Glow sur les pattern cards */
+    .pattern-card:hover { box-shadow: var(--glow-blue); }
+
+    /* Glow rouge sur chaos cards */
+    .chaos-card:hover {
+      border-color: rgba(239,68,68,0.5);
+      box-shadow: 0 0 20px rgba(239,68,68,0.2);
+      transform: translateY(-2px);
+    }
+    .chaos-card { transition: all .25s; }
+
+    /* Pulse dot chaos */
+    .chaos-dot {
+      animation: blink-dot 1.8s ease-in-out infinite;
+    }
+    @keyframes blink-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.2; }
+    }
+
+    /* Glow vert sur le bouton primary */
+    .btn-primary:hover { box-shadow: var(--glow-orange); }
+
+    /* Ligne décorative entre sections */
+    section + section {
+      border-top: 1px solid var(--border);
+      position: relative;
+    }
+    section + section::before {
+      content: '';
+      position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+      width: 120px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+    }
+
+    /* Coins HUD sur les arch-layer cards */
+    .arch-layer { position: relative; }
+    .arch-layer::before, .arch-layer::after {
+      content: ''; position: absolute;
+      width: 10px; height: 10px;
+    }
+    .arch-layer::before {
+      top: -1px; left: -1px;
+      border-left: 2px solid var(--accent2);
+      border-top: 2px solid var(--accent2);
+      border-radius: 2px 0 0 0;
+    }
+    .arch-layer::after {
+      bottom: -1px; right: -1px;
+      border-right: 2px solid var(--accent2);
+      border-bottom: 2px solid var(--accent2);
+      border-radius: 0 0 2px 0;
+    }
+
+    /* Nav live status */
+    .nav-status {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-size: 0.68rem; font-weight: 700; color: var(--accent3);
+      letter-spacing: 0.08em;
+    }
+    .nav-status-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--accent3);
+      animation: pulse-live 2s ease-in-out infinite;
+    }
+
+    /* Hamburger menu */
+    .nav-hamburger {
+      display: none; flex-direction: column; gap: 5px;
+      background: none; border: none; cursor: pointer; padding: 0.25rem;
+    }
+    .nav-hamburger span {
+      display: block; width: 22px; height: 2px;
+      background: var(--text); border-radius: 2px;
+      transition: all .3s;
+    }
+    .nav-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .nav-hamburger.open span:nth-child(2) { opacity: 0; }
+    .nav-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    /* Marquee cards : coins HUD */
+    .marquee-card::before {
+      content: ''; position: absolute;
+      top: 4px; left: 4px;
+      width: 8px; height: 8px;
+      border-left: 1px solid rgba(59,130,246,0.5);
+      border-top: 1px solid rgba(59,130,246,0.5);
+      z-index: 2; pointer-events: none;
+    }
+
+    /* ss-card : overlay scan au hover */
+    .ss-card::after {
+      content: '↗ Voir';
+      position: absolute; inset: 0;
+      background: rgba(10,14,26,0.5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; font-weight: 700; color: var(--accent2);
+      opacity: 0; transition: opacity .2s;
+      letter-spacing: 0.1em;
+    }
+    .ss-card { position: relative; }
+    .ss-card:hover::after { opacity: 1; }
+
+    /* Stack items : bar de progression */
+    .stack-item::after {
+      content: '';
+      display: block; height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+      flex: 1;
+    }
+    .stack-item { gap: 0.5rem; }
+
+    /* Architecture diagram : border glow */
+    .arch-diagram {
+      box-shadow: inset 0 0 40px rgba(59,130,246,0.04);
+    }
+
+    /* Scrollbar tech */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
+
+    /* ══════════════════════════════════════════════════════════
+       RESPONSIVE — 3 NIVEAUX
+    ══════════════════════════════════════════════════════════ */
+
+    /* ── Tablette (≤ 1024px) ── */
+    @media (max-width: 1024px) {
+      .hero-inner { gap: 2.5rem; }
+      .hero-photo { width: 170px; height: 170px; }
+      .patterns-grid { grid-template-columns: repeat(2, 1fr); }
+      .ss-grid { grid-template-columns: repeat(2, 1fr); }
+      .metrics-grid { grid-template-columns: repeat(3, 1fr); }
+      .stack-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ── Mobile large (≤ 768px) ── */
+    @media (max-width: 768px) {
+      /* Nav hamburger */
+      .nav-hamburger { display: flex; }
+      .nav-status { display: none; }
+      .nav-links {
+        display: none; flex-direction: column; gap: 0; width: 100%;
+        position: absolute; top: 100%; left: 0;
+        background: rgba(10,14,26,0.98); backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--border);
+        padding: 0.5rem 0;
+      }
+      .nav-links.open { display: flex; }
+      .nav-links a {
+        padding: 0.75rem 1.5rem; font-size: 0.9rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .nav-links a:last-child { border-bottom: none; }
+      nav { flex-wrap: wrap; padding: 0.75rem 1.25rem; position: relative; }
+
+      /* Hero */
+      .hero { padding: 4.5rem 1.25rem 3rem; min-height: auto; }
+      .hero-inner {
+        grid-template-columns: 1fr; justify-items: center;
+        gap: 2rem; text-align: center;
+      }
+      .hero-photo { width: 150px; height: 150px; }
+      .hero-meta { justify-content: center; }
+      .hero-meta-item { text-align: center; }
+      .hero-cta { justify-content: center; flex-wrap: wrap; }
+      .hero-sub { max-width: 100%; font-size: 0.95rem; }
+
+      /* Sections */
+      section { padding: 3rem 1.25rem; }
+      .container { padding: 0; }
+      .section-desc { max-width: 100%; margin-bottom: 2rem; }
+
+      /* Architecture */
+      .arch-diagram {
+        font-size: 0.7rem; padding: 1rem; line-height: 1.7;
+        overflow-x: auto; -webkit-overflow-scrolling: touch;
+      }
+      .arch-layers { grid-template-columns: 1fr 1fr; }
+
+      /* Patterns */
+      .patterns-grid { grid-template-columns: 1fr; }
+
+      /* Chaos */
+      .chaos-grid { grid-template-columns: 1fr; }
+
+      /* CI/CD Pipeline */
+      .pipeline { flex-direction: column; }
+      .pipeline-stage { border-right: none; border-bottom: 1px solid var(--border); }
+      .pipeline-stage:last-child { border-bottom: none; }
+      .pipeline-stage::after { display: none; }
+
+      /* Stack */
+      .stack-grid { grid-template-columns: 1fr; }
+
+      /* Métriques */
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+
+      /* Marquee */
+      .marquee-card { width: 200px; }
+      .marquee-card img { height: 112px; }
+
+      /* Screenshots grid */
+      .ss-grid { grid-template-columns: 1fr; }
+      .ss-filters { gap: 0.4rem; }
+      .ss-filter { font-size: 0.72rem; padding: 0.3rem 0.7rem; }
+
+      /* À propos */
+      .apropos-inner { flex-direction: column; align-items: center; text-align: center; }
+      .apropos-photo { width: 140px; height: 140px; }
+      .apropos-text p { max-width: 100%; }
+
+      /* Lightbox */
+      .lightbox { padding: 1rem; }
+      .lightbox-prev, .lightbox-next { display: none; }
+      .lightbox-close { top: -2rem; font-size: 1.3rem; }
+    }
+
+    /* ── Mobile petit (≤ 480px) ── */
+    @media (max-width: 480px) {
+      .hero-photo { width: 120px; height: 120px; }
+      .hero h1 { font-size: 1.6rem; }
+      .hero-meta { gap: 1rem; }
+      .hero-meta-item .val { font-size: 1.3rem; }
+      .btn { padding: 0.55rem 1.1rem; font-size: 0.82rem; }
+      .section-title { font-size: 1.4rem; }
+      .metrics-grid { grid-template-columns: 1fr 1fr; }
+      .arch-layers { grid-template-columns: 1fr; }
+      .marquee-card { width: 170px; }
+      .marquee-card img { height: 95px; }
+      .ss-grid { grid-template-columns: 1fr; }
+      section { padding: 2.5rem 1rem; }
+      .nav-brand { font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════ NAV -->
+<nav>
+  <div class="nav-brand">SMART ASSEMBLY LINE</div>
+  <div class="nav-status">
+    <span class="nav-status-dot"></span> AWS · eu-west-3 · LIVE
+  </div>
+  <div class="nav-links" id="navLinks">
+    <a href="#architecture" class="nav-close">Architecture</a>
+    <a href="#resilience"   class="nav-close">Résilience</a>
+    <a href="#chaos"        class="nav-close">Chaos</a>
+    <a href="#cicd"         class="nav-close">CI/CD</a>
+    <a href="#metrics"      class="nav-close">Métriques</a>
+    <a href="#screenshots"  class="nav-close">Preuves AWS</a>
+  </div>
+  <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════ HERO -->
+<div class="hero">
+  <div class="hero-inner">
+
+    <!-- Colonne gauche : photo + identité -->
+    <div class="hero-photo-col">
+      <img class="hero-photo" src="./photo.png" alt="Lansana CONDÉ" />
+      <div class="hero-photo-name">Lansana CONDÉ</div>
+      <div class="hero-photo-role">Architecte logiciel<br>Industrie 4.0 · AWS</div>
+    </div>
+
+    <!-- Colonne droite : présentation projet -->
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span>●</span> Projet fil rouge — Niveau Staff Architect
+      </div>
+      <h1>Smart <span>Aerospace</span><br>Assembly Line</h1>
+      <p class="hero-sub">
+        Système de supervision industrielle IoT temps réel sur AWS —
+        architecture event-driven, edge computing Greengrass, résilience chaos-tested,
+        entièrement provisionné en Terraform.
+      </p>
+      <div class="hero-meta">
+        <div class="hero-meta-item">
+          <span class="val">1 000</span>
+          <span class="lbl">événements/s</span>
+        </div>
+        <div class="hero-meta-item">
+          <span class="val">100K</span>
+          <span class="lbl">capteurs cible</span>
+        </div>
+        <div class="hero-meta-item">
+          <span class="val">5</span>
+          <span class="lbl">chaos scenarios</span>
+        </div>
+        <div class="hero-meta-item">
+          <span class="val">100%</span>
+          <span class="lbl">Terraform IaC</span>
+        </div>
+      </div>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="https://github.com/lansanconde/smart-assembly-line" target="_blank">
+          ↗ GitHub — Code source
+        </a>
+        <a class="btn btn-outline" href="#architecture">
+          ↓ Voir l'architecture
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ MARQUEE AWS LIVE -->
+<div class="marquee-section">
+  <div class="marquee-label">☁ Infrastructure AWS — en production · eu-west-3 (Paris)</div>
+
+  <!-- Rangée 1 : gauche → droite -->
+  <div class="marquee-row">
+    <div class="marquee-track" id="mTrack1">
+      <div class="marquee-card" data-src="./screenshots/capt1_smart-assembly-overview.png" data-caption="CloudWatch Dashboard — Lambda · ECS CPU/Memory · Running Tasks">
+        <img src="./screenshots/capt1_smart-assembly-overview.png" alt="CloudWatch" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-cw">CloudWatch</span><span class="marquee-card-title">Dashboard Lambda & ECS</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap1_supervision-api.png" data-caption="ECS — supervision-api : statut Actif, 1 tâche saine sur l'ALB">
+        <img src="./screenshots/cap1_supervision-api.png" alt="ECS" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-ecs">ECS Fargate</span><span class="marquee-card-title">supervision-api · Actif</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/capt1_alb-target-group.png" data-caption="ALB smart-assembly-alb — Listener HTTP:80 · Target Group actif">
+        <img src="./screenshots/capt1_alb-target-group.png" alt="ALB" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-alb">Load Balancer</span><span class="marquee-card-title">smart-assembly-alb · Actif</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap_eventBridge-bus-events.png" data-caption="EventBridge — Bus smart-assembly-events · 2 règles actives">
+        <img src="./screenshots/cap_eventBridge-bus-events.png" alt="EventBridge" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-eb">EventBridge</span><span class="marquee-card-title">Bus · 2 règles actives</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/github-actions-ci-cd.png" data-caption="GitHub Actions — CI/CD complet · Success 2m51s">
+        <img src="./screenshots/github-actions-ci-cd.png" alt="CI/CD" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-ci">CI/CD</span><span class="marquee-card-title">GitHub Actions · Success ✓</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap_s3.png" data-caption="S3 — smart-assembly-raw-data · 195 fichiers JSON capteurs IoT">
+        <img src="./screenshots/cap_s3.png" alt="S3" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-s3">S3</span><span class="marquee-card-title">raw-data · 195 events capteurs</span></div>
+      </div>
+      <!-- Doublon pour boucle infinie -->
+      <div class="marquee-card" data-src="./screenshots/capt1_smart-assembly-overview.png" data-caption="CloudWatch Dashboard — Lambda · ECS CPU/Memory · Running Tasks">
+        <img src="./screenshots/capt1_smart-assembly-overview.png" alt="CloudWatch" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-cw">CloudWatch</span><span class="marquee-card-title">Dashboard Lambda & ECS</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap1_supervision-api.png" data-caption="ECS — supervision-api : statut Actif, 1 tâche saine sur l'ALB">
+        <img src="./screenshots/cap1_supervision-api.png" alt="ECS" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-ecs">ECS Fargate</span><span class="marquee-card-title">supervision-api · Actif</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/capt1_alb-target-group.png" data-caption="ALB smart-assembly-alb — Listener HTTP:80 · Target Group actif">
+        <img src="./screenshots/capt1_alb-target-group.png" alt="ALB" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-alb">Load Balancer</span><span class="marquee-card-title">smart-assembly-alb · Actif</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap_eventBridge-bus-events.png" data-caption="EventBridge — Bus smart-assembly-events · 2 règles actives">
+        <img src="./screenshots/cap_eventBridge-bus-events.png" alt="EventBridge" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-eb">EventBridge</span><span class="marquee-card-title">Bus · 2 règles actives</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/github-actions-ci-cd.png" data-caption="GitHub Actions — CI/CD complet · Success 2m51s">
+        <img src="./screenshots/github-actions-ci-cd.png" alt="CI/CD" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-ci">CI/CD</span><span class="marquee-card-title">GitHub Actions · Success ✓</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rangée 2 : droite → gauche (sens inverse) -->
+  <div class="marquee-row">
+    <div class="marquee-track">
+      <div class="marquee-card" data-src="./screenshots/capt2_smart-assembly-overview.png" data-caption="CloudWatch — ALB · DynamoDB · Alarmes actives">
+        <img src="./screenshots/capt2_smart-assembly-overview.png" alt="CloudWatch ALB" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-cw">CloudWatch</span><span class="marquee-card-title">ALB · DynamoDB · Alarmes</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap_step_funtion_circuitBreaker.png" data-caption="Step Functions — Circuit Breaker · Workflow d'intervention">
+        <img src="./screenshots/cap_step_funtion_circuitBreaker.png" alt="Step Functions" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-sf">Step Functions</span><span class="marquee-card-title">Circuit Breaker · Workflow</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap_greengrass-core-poste.png" data-caption="AWS IoT Core — Things Registry : greengrass-core-poste · poste_1">
+        <img src="./screenshots/cap_greengrass-core-poste.png" alt="IoT Core" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-iot">IoT / Edge</span><span class="marquee-card-title">IoT Core · greengrass-core</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/capt2_alb-target-group.png" data-caption="ALB — Target Group · Santé & Règles de routage">
+        <img src="./screenshots/capt2_alb-target-group.png" alt="ALB Target" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-alb">Load Balancer</span><span class="marquee-card-title">Target Group · Santé</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap2_supervision-api.png" data-caption="ECS — Métriques & Autoscaling supervision-api">
+        <img src="./screenshots/cap2_supervision-api.png" alt="ECS métriques" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-ecs">ECS Fargate</span><span class="marquee-card-title">supervision-api · Autoscaling</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap1_dynamo.png" data-caption="DynamoDB — machine_state · 3 postes EN_INTERVENTION">
+        <img src="./screenshots/cap1_dynamo.png" alt="DynamoDB" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-dynamo">DynamoDB</span><span class="marquee-card-title">machine_state · 3 postes</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap2_dynamo.png" data-caption="DynamoDB — poste_1 · PRESSION · EN_INTERVENTION · 87.8°C">
+        <img src="./screenshots/cap2_dynamo.png" alt="DynamoDB item" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-dynamo">DynamoDB</span><span class="marquee-card-title">poste_1 · PRESSION · 87.8°C</span></div>
+      </div>
+      <!-- Doublon -->
+      <div class="marquee-card" data-src="./screenshots/capt2_smart-assembly-overview.png" data-caption="CloudWatch — ALB · DynamoDB · Alarmes actives">
+        <img src="./screenshots/capt2_smart-assembly-overview.png" alt="CloudWatch ALB" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-cw">CloudWatch</span><span class="marquee-card-title">ALB · DynamoDB · Alarmes</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap_step_funtion_circuitBreaker.png" data-caption="Step Functions — Circuit Breaker · Workflow d'intervention">
+        <img src="./screenshots/cap_step_funtion_circuitBreaker.png" alt="Step Functions" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-sf">Step Functions</span><span class="marquee-card-title">Circuit Breaker · Workflow</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap_greengrass-core-poste.png" data-caption="AWS IoT Core — Things Registry : greengrass-core-poste · poste_1">
+        <img src="./screenshots/cap_greengrass-core-poste.png" alt="IoT Core" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-iot">IoT / Edge</span><span class="marquee-card-title">IoT Core · greengrass-core</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/capt2_alb-target-group.png" data-caption="ALB — Target Group · Santé & Règles de routage">
+        <img src="./screenshots/capt2_alb-target-group.png" alt="ALB Target" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-alb">Load Balancer</span><span class="marquee-card-title">Target Group · Santé</span></div>
+      </div>
+      <div class="marquee-card" data-src="./screenshots/cap2_supervision-api.png" data-caption="ECS — Métriques & Autoscaling supervision-api">
+        <img src="./screenshots/cap2_supervision-api.png" alt="ECS métriques" loading="lazy" />
+        <div class="marquee-card-info"><span class="ss-badge badge-ecs">ECS Fargate</span><span class="marquee-card-title">supervision-api · Autoscaling</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ ARCHITECTURE -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-label">Architecture</div>
+    <h2 class="section-title">Vue d'ensemble du système</h2>
+    <p class="section-desc">
+      Pipeline complet edge-to-cloud : capteurs MQTT → Greengrass → IoT Core →
+      EventBridge → Lambda → DynamoDB → API Spring Boot → ALB.
+      Chaque couche est fault-tolerant et observable.
+    </p>
+
+    <div class="arch-diagram">
+<pre>
+  <span class="hl-yellow">┌─────────────────────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-yellow">│  EDGE — Poste d'assemblage (Greengrass v2)                                  │</span>
+  <span class="hl-yellow">│  Capteurs vibration · température · pression → EdgeFilter → buffer local    │</span>
+  <span class="hl-yellow">└─────────────────────────────────┬───────────────────────────────────────────┘</span>
+                                    │ MQTT / TLS
+                                    ▼
+  <span class="hl-orange">┌──────────────────────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-orange">│  INGESTION — AWS IoT Core                                                    │</span>
+  <span class="hl-orange">│  Thing Registry · Rules Engine SQL · Device Shadow · CloudTrail audit        │</span>
+  <span class="hl-orange">└──────────┬────────────────────────────────────────────────────────┬──────────┘</span>
+             │ Rule → Lambda                                          │ Rule → EventBridge
+             ▼                                                        ▼
+  <span class="hl-blue">┌─────────────────────────────┐</span>             <span class="hl-purple">┌────────────────────────────┐</span>
+  <span class="hl-blue">│  Lambda — analyze_vibration │</span>             <span class="hl-purple">│  EventBridge Bus           │</span>
+  <span class="hl-blue">│  detect_anomaly (ML)        │</span>             <span class="hl-purple">│  Rules → SQS → Step Func.  │</span>
+  <span class="hl-blue">│  store_metrics              │</span>             <span class="hl-purple">│  InterventionWorkflow      │</span>
+  <span class="hl-blue">└──────────────┬──────────────┘</span>             <span class="hl-purple">└─────────────┬──────────────┘</span>
+                │ Write                                       │ Kinesis
+                ▼                                            ▼
+  <span class="hl-green">┌──────────────────────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-green">│  DATA — DynamoDB (machine_state, KMS-CMK)  ·  S3 data lake  ·  Kinesis      │</span>
+  <span class="hl-green">│  État temps réel · Historique réglementaire · 1 000 evt/s Kinesis            │</span>
+  <span class="hl-green">└───────────────────────────────────┬──────────────────────────────────────────┘</span>
+                                      │ Read
+                                      ▼
+  <span class="hl-orange">┌──────────────────────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-orange">│  API — ECS Fargate · Spring Boot · supervision-api                           │</span>
+  <span class="hl-orange">│  Auto Scaling (CPU 60%) · Canary Deployment · ALB multi-AZ                  │</span>
+  <span class="hl-orange">└──────────────────────────────────────────────────────────────────────────────┘</span>
+</pre>
+    </div>
+
+    <div class="arch-layers">
+      <div class="arch-layer">
+        <div class="arch-layer-title orange">Edge (Greengrass)</div>
+        <span class="service-tag tag-yellow">Greengrass v2</span>
+        <span class="service-tag tag-yellow">MQTT</span>
+        <span class="service-tag tag-yellow">EdgeFilter</span>
+        <span class="service-tag tag-yellow">TinyML</span>
+        <span class="service-tag tag-yellow">Buffer local</span>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-title orange">Ingestion</div>
+        <span class="service-tag tag-orange">IoT Core</span>
+        <span class="service-tag tag-orange">Rules Engine</span>
+        <span class="service-tag tag-orange">Device Shadow</span>
+        <span class="service-tag tag-orange">CloudTrail</span>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-title blue">Event-Driven Core</div>
+        <span class="service-tag tag-blue">Lambda</span>
+        <span class="service-tag tag-blue">EventBridge</span>
+        <span class="service-tag tag-blue">SQS + DLQ</span>
+        <span class="service-tag tag-blue">Step Functions</span>
+        <span class="service-tag tag-blue">Kinesis</span>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-title green">Data</div>
+        <span class="service-tag tag-green">DynamoDB</span>
+        <span class="service-tag tag-green">S3</span>
+        <span class="service-tag tag-green">KMS CMK</span>
+        <span class="service-tag tag-green">Kinesis</span>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-title orange">API & Ops</div>
+        <span class="service-tag tag-orange">ECS Fargate</span>
+        <span class="service-tag tag-orange">Spring Boot</span>
+        <span class="service-tag tag-orange">ALB</span>
+        <span class="service-tag tag-orange">Auto Scaling</span>
+        <span class="service-tag tag-purple">CloudWatch</span>
+        <span class="service-tag tag-purple">Canary Deploy</span>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-layer-title purple">Sécurité & IaC</div>
+        <span class="service-tag tag-purple">IAM least-priv.</span>
+        <span class="service-tag tag-purple">VPC privé</span>
+        <span class="service-tag tag-purple">KMS</span>
+        <span class="service-tag tag-purple">Terraform</span>
+        <span class="service-tag tag-purple">Checkov</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ RÉSILIENCE -->
+<section id="resilience">
+  <div class="container">
+    <div class="section-label">Patterns de résilience</div>
+    <h2 class="section-title">Conçu pour échouer — et récupérer</h2>
+    <p class="section-desc">
+      Chaque composant est dimensionné avec son mode de dégradation et sa stratégie de
+      récupération. Pas de happy path. Failure-first design.
+    </p>
+    <div class="patterns-grid">
+      <div class="pattern-card">
+        <div class="pattern-icon">🔁</div>
+        <div class="pattern-title">Idempotency</div>
+        <div class="pattern-desc">Clé d'idempotence sur chaque traitement Lambda. Un événement rejoué deux fois ne produit aucun double effet — validé par test de rejeu intentionnel.</div>
+        <span class="pattern-tag">Lambda · DynamoDB</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">⏱️</div>
+        <div class="pattern-title">Retry avec backoff exponentiel + jitter</div>
+        <div class="pattern-desc">Appels Lambda → DynamoDB avec backoff exponentiel. Jitter aléatoire pour éviter le thundering herd lors des reconnexions simultanées post-panne.</div>
+        <span class="pattern-tag">Lambda · IoT Greengrass</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">⚡</div>
+        <div class="pattern-title">Circuit Breaker</div>
+        <div class="pattern-desc">Step Functions avec état "circuit ouvert" après N échecs consécutifs. Stoppe les tentatives en boucle et bascule en mode intervention manuelle.</div>
+        <span class="pattern-tag">Step Functions</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">🪣</div>
+        <div class="pattern-title">Dead-Letter Queue</div>
+        <div class="pattern-desc">Chaque queue SQS a une DLQ associée. Les événements non traitables après N tentatives sont isolés sans bloquer le flux principal.</div>
+        <span class="pattern-tag">SQS · EventBridge</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">📈</div>
+        <div class="pattern-title">Backpressure</div>
+        <div class="pattern-desc">Rejet propre à la source si le backlog SQS dépasse un seuil. Priorisation des événements critiques (arrêt machine) sur les événements d'information.</div>
+        <span class="pattern-tag">SQS · Kinesis</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">🌊</div>
+        <div class="pattern-title">At-least-once assumé</div>
+        <div class="pattern-desc">AWS livre en at-least-once, pas exactly-once. Le système est conçu en conséquence : idempotence partout, cohérence éventuelle documentée et acceptée.</div>
+        <span class="pattern-tag">Architecture globale</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">📦</div>
+        <div class="pattern-title">Edge buffer (IoT Core down)</div>
+        <div class="pattern-desc">Si IoT Core est indisponible, Greengrass continue la détection locale et bufferise les événements. Reprise automatique avec jitter à la reconnexion.</div>
+        <span class="pattern-tag">Greengrass · IoT Core</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">🐦</div>
+        <div class="pattern-title">Canary Deployment</div>
+        <div class="pattern-desc">ALB Weighted Target Groups : 10% du trafic sur la nouvelle version, métriques surveillées, rollback en quelques secondes si dégradation détectée.</div>
+        <span class="pattern-tag">ALB · ECS · CloudWatch</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">📏</div>
+        <div class="pattern-title">Auto Scaling</div>
+        <div class="pattern-desc">ECS Target Tracking sur CPU (60%) et mémoire (75%). Scale-out en 60s, scale-in conservateur après 300s. Min 1 task, max 4 tasks.</div>
+        <span class="pattern-tag">ECS · App Auto Scaling</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ CHAOS -->
+<section id="chaos">
+  <div class="container">
+    <div class="section-label">Chaos Engineering</div>
+    <h2 class="section-title">5 pannes provoquées — résultats documentés</h2>
+    <p class="section-desc">
+      Le système a été volontairement mis en échec sur ses points de défaillance les plus
+      critiques. Chaque scénario est documenté avec comportement observé et stratégie de récupération.
+    </p>
+    <div class="chaos-grid">
+      <div class="chaos-card">
+        <div class="chaos-card-header">
+          <div class="chaos-dot"></div>
+          <div class="chaos-scenario">IoT Core indisponible — 10 min</div>
+        </div>
+        <div class="chaos-detail">Coupure réseau simulée entre Greengrass et IoT Core. Reconnexion simultanée de tous les postes au retour.</div>
+        <div class="chaos-recovery">Détection locale maintenue · Buffer vidé en ordre · Jitter empêche le retry storm</div>
+      </div>
+      <div class="chaos-card">
+        <div class="chaos-card-header">
+          <div class="chaos-dot"></div>
+          <div class="chaos-scenario">Lambda — limite de concurrence atteinte</div>
+        </div>
+        <div class="chaos-detail">Throttling Lambda provoqué en saturant la concurrence réservée. Observation du comportement des événements en attente.</div>
+        <div class="chaos-recovery">Événements mis en file (SQS) · Alerte CloudWatch · Zéro perte de données</div>
+      </div>
+      <div class="chaos-card">
+        <div class="chaos-card-header">
+          <div class="chaos-dot"></div>
+          <div class="chaos-scenario">EventBridge — délai de routage artificiel</div>
+        </div>
+        <div class="chaos-detail">Délai injecté sur le routage EventBridge. Mesure de l'impact sur la latence de bout en bout.</div>
+        <div class="chaos-recovery">Traitement différé · Alerte si délai &gt; seuil métier · Flux non bloqué</div>
+      </div>
+      <div class="chaos-card">
+        <div class="chaos-card-header">
+          <div class="chaos-dot"></div>
+          <div class="chaos-scenario">SQS — backlog 10× le volume normal</div>
+        </div>
+        <div class="chaos-detail">Injection de 10× le volume normal en quelques secondes. Observation du comportement sous saturation.</div>
+        <div class="chaos-recovery">Priorisation events critiques · Backpressure à la source · DLQ pour messages en excès</div>
+      </div>
+      <div class="chaos-card">
+        <div class="chaos-card-header">
+          <div class="chaos-dot"></div>
+          <div class="chaos-scenario">DynamoDB — throttling prolongé</div>
+        </div>
+        <div class="chaos-detail">Capacité volontairement sous-dimensionnée pour provoquer un throttling DynamoDB en continu.</div>
+        <div class="chaos-recovery">Retry maîtrisé · Lecture cache · Erreur non propagée à l'utilisateur final</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ CI/CD -->
+<section id="cicd">
+  <div class="container">
+    <div class="section-label">CI/CD</div>
+    <h2 class="section-title">Pipeline GitHub Actions — 6 jobs</h2>
+    <p class="section-desc">
+      Chaque push sur main déclenche validation, scan de sécurité, tests, et déploiement Terraform automatique.
+      State partagé via backend S3 — aucun conflit entre local et CI.
+    </p>
+    <div class="pipeline">
+      <div class="pipeline-stage">
+        <div class="pipeline-num" style="background:rgba(249,115,22,0.15);color:var(--accent);">1</div>
+        <div class="pipeline-stage-name">TF Validate</div>
+        <div class="pipeline-stage-detail">fmt · validate</div>
+      </div>
+      <div class="pipeline-stage">
+        <div class="pipeline-num" style="background:rgba(239,68,68,0.15);color:#ef4444;">2</div>
+        <div class="pipeline-stage-name">Checkov</div>
+        <div class="pipeline-stage-detail">IaC security scan · SARIF</div>
+      </div>
+      <div class="pipeline-stage">
+        <div class="pipeline-num" style="background:rgba(59,130,246,0.15);color:var(--accent2);">3</div>
+        <div class="pipeline-stage-name">Tests Python</div>
+        <div class="pipeline-stage-detail">pytest · moto · 70% cov.</div>
+      </div>
+      <div class="pipeline-stage">
+        <div class="pipeline-num" style="background:rgba(59,130,246,0.15);color:var(--accent2);">4</div>
+        <div class="pipeline-stage-name">Tests Spring</div>
+        <div class="pipeline-stage-detail">mvn · @MockitoBean · JUnit5</div>
+      </div>
+      <div class="pipeline-stage">
+        <div class="pipeline-num" style="background:rgba(16,185,129,0.15);color:var(--accent3);">5</div>
+        <div class="pipeline-stage-name">TF Plan</div>
+        <div class="pipeline-stage-detail">PR comment · artefact</div>
+      </div>
+      <div class="pipeline-stage">
+        <div class="pipeline-num" style="background:rgba(16,185,129,0.15);color:var(--accent3);">6</div>
+        <div class="pipeline-stage-name">TF Apply</div>
+        <div class="pipeline-stage-detail">main uniquement · env prod</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ STACK -->
+<section id="stack">
+  <div class="container">
+    <div class="section-label">Stack technique</div>
+    <h2 class="section-title">Technologies utilisées</h2>
+    <p class="section-desc">Infrastructure 100% AWS, provisionnée en Terraform. Backend Spring Boot, simulation IoT en Python.</p>
+    <div class="stack-grid">
+      <div class="stack-group">
+        <div class="stack-group-title">IoT & Edge</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>AWS IoT Core</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>Greengrass v2</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>MQTT / TLS</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>Device Shadow</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>Rules Engine</div>
+      </div>
+      <div class="stack-group">
+        <div class="stack-group-title">Event-Driven</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent2);"></div>Lambda (Python 3.12)</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent2);"></div>EventBridge</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent2);"></div>SQS + DLQ</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent2);"></div>Step Functions</div>
+      </div>
+      <div class="stack-group">
+        <div class="stack-group-title">Data & Stockage</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>DynamoDB (PAY_PER_REQUEST)</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>S3 (data lake)</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>KMS CMK</div>
+      </div>
+      <div class="stack-group">
+        <div class="stack-group-title">API & Containers</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>ECS Fargate</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>Spring Boot 3 / Java 21</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>ALB multi-AZ</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>ECR</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>App Auto Scaling</div>
+      </div>
+      <div class="stack-group">
+        <div class="stack-group-title">Observabilité</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>CloudWatch Dashboard</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>CloudWatch Alarms</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>CloudTrail</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>Container Insights</div>
+      </div>
+      <div class="stack-group">
+        <div class="stack-group-title">IaC & CI/CD</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>Terraform 1.9</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>GitHub Actions</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>Checkov (SARIF)</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>S3 backend TF state</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>Docker / ECR</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ METRICS -->
+<section id="metrics">
+  <div class="container">
+    <div class="section-label">Dimensionnement</div>
+    <h2 class="section-title">Cibles de scalabilité défendues en entretien</h2>
+    <p class="section-desc">Chaque chiffre est justifié et défendable — pas des valeurs arbitraires.</p>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-val" style="color:var(--accent);">1 000</div>
+        <div class="metric-lbl">événements/seconde</div>
+        <div class="metric-sub">Débit cible Kinesis en pic · Dimensionnement shards justifié</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:var(--accent2);">100K</div>
+        <div class="metric-lbl">capteurs multi-sites</div>
+        <div class="metric-sub">Scalabilité IoT Core + partitionnement DynamoDB par site</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:var(--accent3);">p99</div>
+        <div class="metric-lbl">latence ALB surveillée</div>
+        <div class="metric-sub">SLA 2s · Annotation CloudWatch · Scale-out avant saturation</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:#a78bfa;">60%</div>
+        <div class="metric-lbl">CPU cible Auto Scaling</div>
+        <div class="metric-sub">Marge 40% pour absorber les pics pendant le démarrage Fargate (~60s)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:#fbbf24;">10%</div>
+        <div class="metric-lbl">trafic canary initial</div>
+        <div class="metric-sub">ALB weighted · Rollback en secondes · Bascule progressive 10→50→100%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:var(--accent);">5</div>
+        <div class="metric-lbl">scénarios chaos testés</div>
+        <div class="metric-sub">IoT down · Lambda throttle · EventBridge delay · SQS burst · DynamoDB throttle</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SCREENSHOTS -->
+<section id="screenshots">
+  <div class="container">
+    <div class="section-label">Preuves AWS</div>
+    <h2 class="section-title">Infrastructure en production</h2>
+    <p class="section-desc">
+      Captures réelles depuis la console AWS — chaque service est provisionné, actif et observable.
+    </p>
+
+    <!-- Filtres -->
+    <div class="ss-filters">
+      <button class="ss-filter active" data-cat="all">Tout</button>
+      <button class="ss-filter" data-cat="cw">CloudWatch</button>
+      <button class="ss-filter" data-cat="ecs">ECS Fargate</button>
+      <button class="ss-filter" data-cat="alb">Load Balancer</button>
+      <button class="ss-filter" data-cat="eb">EventBridge</button>
+      <button class="ss-filter" data-cat="iot">IoT / Edge</button>
+      <button class="ss-filter" data-cat="sf">Step Functions</button>
+      <button class="ss-filter" data-cat="ci">CI/CD</button>
+      <button class="ss-filter" data-cat="s3">S3</button>
+      <button class="ss-filter" data-cat="dynamo">DynamoDB</button>
+    </div>
+
+    <!-- Grille -->
+    <div class="ss-grid" id="ssGrid">
+
+      <div class="ss-card" data-cat="cw" data-src="./screenshots/capt1_smart-assembly-overview.png" data-caption="CloudWatch Dashboard — Lambda · ECS CPU/Memory · Running Tasks">
+        <img class="ss-card-img" src="./screenshots/capt1_smart-assembly-overview.png" alt="CloudWatch Dashboard" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-cw">CloudWatch</span>
+          <span class="ss-card-title">Dashboard — Lambda & ECS (CPU · Mémoire · Tasks)</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="cw" data-src="./screenshots/capt2_smart-assembly-overview.png" data-caption="CloudWatch Dashboard — ALB · DynamoDB · Alarmes actives">
+        <img class="ss-card-img" src="./screenshots/capt2_smart-assembly-overview.png" alt="CloudWatch ALB + DynamoDB" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-cw">CloudWatch</span>
+          <span class="ss-card-title">Dashboard — ALB · DynamoDB · Alarmes</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="ecs" data-src="./screenshots/cap1_supervision-api.png" data-caption="ECS — supervision-api : statut Actif, 1 tâche saine sur l'ALB">
+        <img class="ss-card-img" src="./screenshots/cap1_supervision-api.png" alt="ECS supervision-api" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-ecs">ECS Fargate</span>
+          <span class="ss-card-title">supervision-api — Statut Actif · 1 tâche saine</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="ecs" data-src="./screenshots/cap2_supervision-api.png" data-caption="ECS — détail métriques CPU/Memory du service supervision-api">
+        <img class="ss-card-img" src="./screenshots/cap2_supervision-api.png" alt="ECS métriques" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-ecs">ECS Fargate</span>
+          <span class="ss-card-title">supervision-api — Métriques & Autoscaling</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="alb" data-src="./screenshots/capt1_alb-target-group.png" data-caption="ALB smart-assembly-alb — Listener HTTP:80 · Target Group actif">
+        <img class="ss-card-img" src="./screenshots/capt1_alb-target-group.png" alt="ALB target group" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-alb">Load Balancer</span>
+          <span class="ss-card-title">smart-assembly-alb — Listener & Target Group</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="alb" data-src="./screenshots/capt2_alb-target-group.png" data-caption="ALB — Target Group santé & règles de routage">
+        <img class="ss-card-img" src="./screenshots/capt2_alb-target-group.png" alt="ALB règles" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-alb">Load Balancer</span>
+          <span class="ss-card-title">Target Group — Santé & Règles de routage</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="eb" data-src="./screenshots/cap_eventBridge-bus-events.png" data-caption="EventBridge — Bus smart-assembly-events · 2 règles actives">
+        <img class="ss-card-img" src="./screenshots/cap_eventBridge-bus-events.png" alt="EventBridge bus" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-eb">EventBridge</span>
+          <span class="ss-card-title">Bus smart-assembly-events — 2 règles actives</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="iot" data-src="./screenshots/cap_greengrass-core-poste.png" data-caption="AWS IoT Core — Things Registry : greengrass-core-poste · poste_1">
+        <img class="ss-card-img" src="./screenshots/cap_greengrass-core-poste.png" alt="IoT Core Things" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-iot">IoT / Edge</span>
+          <span class="ss-card-title">IoT Core — greengrass-core-poste · poste_1</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="sf" data-src="./screenshots/cap_step_funtion_circuitBreaker.png" data-caption="Step Functions — Circuit Breaker : CheckCircuitBreaker → EvalCircuit → LogIntervention">
+        <img class="ss-card-img" src="./screenshots/cap_step_funtion_circuitBreaker.png" alt="Step Functions Circuit Breaker" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-sf">Step Functions</span>
+          <span class="ss-card-title">Circuit Breaker — Workflow d'intervention</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="ci" data-src="./screenshots/github-actions-ci-cd.png" data-caption="GitHub Actions — CI/CD : Terraform Validate → Security Scan → Tests → Apply ✓">
+        <img class="ss-card-img" src="./screenshots/github-actions-ci-cd.png" alt="GitHub Actions CI/CD" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-ci">CI/CD</span>
+          <span class="ss-card-title">GitHub Actions — Pipeline complet · Success 2m51s</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="s3" data-src="./screenshots/cap_s3.png" data-caption="S3 — smart-assembly-raw-data · 195 fichiers JSON capteurs IoT · poste_1">
+        <img class="ss-card-img" src="./screenshots/cap_s3.png" alt="S3 raw data" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-s3">S3</span>
+          <span class="ss-card-title">smart-assembly-raw-data — 195 events capteurs</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="dynamo" data-src="./screenshots/cap1_dynamo.png" data-caption="DynamoDB — Table machine_state · 3 postes · statuts EN_INTERVENTION">
+        <img class="ss-card-img" src="./screenshots/cap1_dynamo.png" alt="DynamoDB machine_state" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-dynamo">DynamoDB</span>
+          <span class="ss-card-title">machine_state — 3 postes · PRESSION / TEMP / VIBRATION</span>
+        </div>
+      </div>
+
+      <div class="ss-card" data-cat="dynamo" data-src="./screenshots/cap2_dynamo.png" data-caption="DynamoDB — Item poste_1 : anomalie PRESSION · EN_INTERVENTION · temp 87.8°C">
+        <img class="ss-card-img" src="./screenshots/cap2_dynamo.png" alt="DynamoDB item poste_1" loading="lazy" />
+        <div class="ss-card-body">
+          <span class="ss-badge badge-dynamo">DynamoDB</span>
+          <span class="ss-card-title">poste_1 — PRESSION · EN_INTERVENTION · 87.8°C</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-inner">
+    <button class="lightbox-close" id="lbClose">✕</button>
+    <button class="lightbox-nav lightbox-prev" id="lbPrev">‹</button>
+    <button class="lightbox-nav lightbox-next" id="lbNext">›</button>
+    <img id="lbImg" src="" alt="" />
+    <div class="lightbox-caption" id="lbCaption"></div>
+  </div>
+</div>
+
+<script>
+  // ── Filtres ──
+  const filters = document.querySelectorAll('.ss-filter');
+  const cards   = document.querySelectorAll('.ss-card');
+  filters.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filters.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const cat = btn.dataset.cat;
+      cards.forEach(c => {
+        c.style.display = (cat === 'all' || c.dataset.cat === cat) ? '' : 'none';
+      });
+    });
+  });
+
+  // ── Lightbox ──
+  const lb      = document.getElementById('lightbox');
+  const lbImg   = document.getElementById('lbImg');
+  const lbCap   = document.getElementById('lbCaption');
+  const lbClose = document.getElementById('lbClose');
+  const lbPrev  = document.getElementById('lbPrev');
+  const lbNext  = document.getElementById('lbNext');
+
+  let visibleCards = () => [...cards].filter(c => c.style.display !== 'none');
+  let currentIdx = 0;
+
+  function openLightbox(idx) {
+    const vc = visibleCards();
+    currentIdx = idx;
+    lbImg.src = vc[idx].dataset.src;
+    lbImg.alt = vc[idx].querySelector('.ss-card-title').textContent;
+    lbCap.textContent = vc[idx].dataset.caption;
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLightbox() {
+    lb.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  function navigate(dir) {
+    const vc = visibleCards();
+    currentIdx = (currentIdx + dir + vc.length) % vc.length;
+    openLightbox(currentIdx);
+  }
+
+  // Grille principale
+  cards.forEach((card, i) => {
+    card.addEventListener('click', () => {
+      const vc = visibleCards();
+      openLightbox(vc.indexOf(card));
+    });
+  });
+
+  // Marquee cards → lightbox simple (sans navigation entre cards de grille)
+  document.querySelectorAll('.marquee-card').forEach(mc => {
+    mc.addEventListener('click', () => {
+      lbImg.src = mc.dataset.src;
+      lbImg.alt = mc.querySelector('.marquee-card-title').textContent;
+      lbCap.textContent = mc.dataset.caption;
+      lbPrev.style.display = 'none';
+      lbNext.style.display = 'none';
+      lb.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    });
+  });
+
+  lbClose.addEventListener('click', closeLightbox);
+  lbPrev.addEventListener('click', () => navigate(-1));
+  lbNext.addEventListener('click', () => navigate(1));
+  lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
+  document.addEventListener('keydown', e => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft')  navigate(-1);
+    if (e.key === 'ArrowRight') navigate(1);
+  });
+</script>
+
+<!-- ═══════════════════════════════════════════════ À PROPOS -->
+<section id="apropos">
+  <div class="container">
+    <div class="section-label">À propos</div>
+    <h2 class="section-title">Lansana CONDÉ</h2>
+    <div class="apropos-inner">
+      <img class="apropos-photo" src="./photo.png" alt="Lansana CONDÉ — Architecte logiciel" />
+      <div class="apropos-text">
+        <span class="role-badge">Architecte IA & IoT — Cloud AWS | Industrie 4.0</span>
+        <p>
+          Ingénieur logiciel avec une expertise en architecture cloud AWS et systèmes embarqués industriels.
+          Ce projet fil rouge — <strong>Smart Aerospace Assembly Line</strong> — démontre la conception
+          et le provisionnement complet d'une ligne d'assemblage aérospatiale connectée :
+          edge computing (Greengrass), streaming IoT, microservices Spring Boot sur ECS Fargate,
+          résilience chaos engineering et déploiement canary.
+        </p>
+        <p style="margin-top: 0.75rem;">
+          Cible : postes <strong>Architecte IA & IoT — Cloud AWS</strong> · Décembre 2026.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ FOOTER -->
+<footer>
+  <div class="footer-name">Lansana CONDÉ</div>
+  <div class="footer-role">Architecte IA & IoT — Cloud AWS | Industrie 4.0</div>
+  <div class="footer-links">
+    <a href="https://github.com/lansanconde/smart-assembly-line" target="_blank">GitHub — smart-assembly-line</a>
+    <a href="https://www.linkedin.com/in/lansana-conde" target="_blank">LinkedIn</a>
+  </div>
+  <div class="footer-copy">Smart Aerospace Assembly Line · Projet fil rouge AWS Staff Architect · 2026</div>
+</footer>
+
+<script>
+  // ── Hamburger nav ──
+  const hamburger = document.getElementById('navHamburger');
+  const navLinks  = document.getElementById('navLinks');
+  hamburger.addEventListener('click', () => {
+    hamburger.classList.toggle('open');
+    navLinks.classList.toggle('open');
+  });
+  // Fermer le menu au clic sur un lien
+  document.querySelectorAll('.nav-close').forEach(a => {
+    a.addEventListener('click', () => {
+      hamburger.classList.remove('open');
+      navLinks.classList.remove('open');
+    });
+  });
+</script>
+
+</body>
+</html>
