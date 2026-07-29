@@ -74,4 +74,7 @@ nav:
 
   - Dashboards & Visualisation:
     - CloudWatch Observabilité Unifiée : cloudwatch/dashboard.md
+  - Deploiement :
+    - canary : deployment/canary.md
+    - GitHub Actions : cicd/github-actions.md
   - Runbook: runbook/index.md 
