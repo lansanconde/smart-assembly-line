@@ -210,12 +210,12 @@ resource "aws_lb_listener_rule" "canary" {
     type = "forward"
     forward {
       target_group {
-        arn    = aws_lb_target_group.backend.arn       # Blue (stable)
-        weight = 100 - var.canary_weight               # 90 par défaut
+        arn    = aws_lb_target_group.backend.arn # Blue (stable)
+        weight = 100 - var.canary_weight         # 90 par défaut
       }
       target_group {
-        arn    = aws_lb_target_group.canary[0].arn     # Green (canary)
-        weight = var.canary_weight                     # 10 par défaut
+        arn    = aws_lb_target_group.canary[0].arn # Green (canary)
+        weight = var.canary_weight                 # 10 par défaut
       }
       stickiness {
         enabled  = false # désactivé : distribution aléatoire pure
