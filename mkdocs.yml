@@ -138,6 +138,8 @@ nav:
       - Composants & Services: architecture/components.md
       - Sécurité & IAM: architecture/security.md
       - Consolidation des axes: architecture/consolidation.md
+      - "Multi-site — 100K capteurs": architecture/multi-site.md
+      - "Modèle de données multi-site": architecture/multi-site-data-model.md
 
   - IoT & Containers:
       - "supervision-api — ECS Fargate": ecs/supervision.md
@@ -166,3 +168,4 @@ nav:
       - "Jour 42 — Canary Deployment": runbooks/jour-42-canary-deployment.md
       - "Jour 43 — Portfolio AWS": runbooks/jour-43-portfolio.md
       - "Jour 44 — Cost Optimization": runbooks/jour-44-cost-optimization.md
+      - "Jour 45 — Architecture multi-site": runbooks/jour-45-multi-site.md
