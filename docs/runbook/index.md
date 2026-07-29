@@ -747,3 +747,434 @@ src/greengrass/
   detector.py    ← TinyML : features, warm-up, Isolation Forest, inférence
   Dockerfile     ← ajout scikit-learn + numpy + joblib + COPY detector.py
 ```
+
+
+# ECS Fargate + Spring Boot Supervision API
+
+---
+
+## Objectif
+
+Déployer l'API de supervision sur ECS Fargate avec :
+- Image Docker Spring Boot poussée sur ECR
+- Service ECS derrière un ALB existant
+- Accès sécurisé à DynamoDB (`machine_state`) via IAM Task Role + KMS
+
+---
+
+## Architecture déployée
+
+```
+Internet
+   │
+   ▼
+ALB (smart-assembly-alb)
+   │  /actuator/health → ECS health check
+   │  /api/machines    → DynamoDB Scan
+   │  /api/alerts      → DynamoDB Scan + FilterExpression
+   ▼
+ECS Fargate Service (supervision-api)
+   │  Task Execution Role → ECR pull + CloudWatch Logs
+   │  Task Role           → DynamoDB + KMS Decrypt
+   ▼
+DynamoDB (machine_state) — chiffrée KMS
+```
+
+---
+
+## 1. Prérequis vérifiés
+
+```powershell
+# Vérifier que le registre ECR existe
+aws ecr describe-repositories --repository-names supervision-api --region eu-west-3
+
+# Vérifier que la table DynamoDB existe
+aws dynamodb describe-table --table-name machine_state --region eu-west-3 --query "Table.{Status:TableStatus,Encryption:SSEDescription.SSEType}"
+```
+
+---
+
+## 2. Build Docker multi-stage
+
+Depuis `C:\Users\conde\supervision-api\` :
+
+```powershell
+docker build -t supervision-api:latest .
+```
+
+**Dockerfile (multi-stage) :**
+```dockerfile
+FROM maven:3.9-eclipse-temurin-21-alpine AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+COPY src ./src
+RUN mvn package -DskipTests -q
+
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+EXPOSE 8080
+ENTRYPOINT ["java", "-Dserver.shutdown=graceful", "-jar", "app.jar"]
+```
+
+> Image finale : ~180MB (JRE alpine uniquement, sans Maven ni sources)
+
+---
+
+## 3. Push ECR
+
+```powershell
+# Authentification Docker → ECR
+aws ecr get-login-password --region eu-west-3 | `
+  docker login --username AWS --password-stdin `
+  169237360990.dkr.ecr.eu-west-3.amazonaws.com
+
+# Tag
+docker tag supervision-api:latest `
+  169237360990.dkr.ecr.eu-west-3.amazonaws.com/supervision-api:latest
+
+# Push
+docker push 169237360990.dkr.ecr.eu-west-3.amazonaws.com/supervision-api:latest
+```
+
+---
+
+## 4. Terraform — ressources créées (ecs.tf)
+
+### 4.1 ECR Repository
+
+```hcl
+resource "aws_ecr_repository" "supervision_api" {
+  name                 = "supervision-api"
+  image_tag_mutability = "MUTABLE"
+  image_scanning_configuration { scan_on_push = true }
+}
+
+resource "aws_ecr_lifecycle_policy" "supervision_api" {
+  repository = aws_ecr_repository.supervision_api.name
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Garder les 5 dernières images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 5
+      }
+      action = { type = "expire" }
+    }]
+  })
+}
+```
+
+### 4.2 ECS Cluster
+
+```hcl
+resource "aws_ecs_cluster" "main" {
+  name = "smart-assembly-cluster"
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+}
+```
+
+### 4.3 IAM Dual-Role
+
+**Task Execution Role** (infrastructure ECS) :
+- Pull image ECR
+- Écrire logs CloudWatch
+
+**Task Role** (application) :
+- `dynamodb:Scan`, `dynamodb:GetItem`, `dynamodb:Query` sur `machine_state`
+- `kms:Decrypt`, `kms:DescribeKey` sur la clé KMS de la table
+- `cloudwatch:DescribeAlarms`, `cloudwatch:GetMetricData`
+
+```hcl
+resource "aws_iam_role_policy" "supervision_api_task" {
+  name = "supervision-api-task-policy"
+  role = aws_iam_role.supervision_api_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBReadOnly"
+        Effect = "Allow"
+        Action = ["dynamodb:Scan", "dynamodb:GetItem", "dynamodb:Query"]
+        Resource = aws_dynamodb_table.machine_state.arn
+      },
+      {
+        Sid    = "KMSDecryptDynamoDB"
+        Effect = "Allow"
+        Action = ["kms:Decrypt", "kms:DescribeKey"]
+        Resource = "arn:aws:kms:eu-west-3:169237360990:key/7d2fd7d2-6d2a-4ce9-beb3-b61621aa90aa"
+      },
+      {
+        Sid    = "CloudWatchRead"
+        Effect = "Allow"
+        Action = ["cloudwatch:DescribeAlarms", "cloudwatch:GetMetricData"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+```
+
+### 4.4 Task Definition
+
+```hcl
+resource "aws_ecs_task_definition" "supervision_api" {
+  family                   = "supervision-api"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.supervision_api_task.arn
+
+  container_definitions = jsonencode([{
+    name  = "supervision-api"
+    image = "${aws_ecr_repository.supervision_api.repository_url}:latest"
+    portMappings = [{ containerPort = 8080, protocol = "tcp" }]
+    environment = [
+      { name = "AWS_REGION",    value = "eu-west-3" },
+      { name = "TABLE_NAME",    value = "machine_state" },
+      { name = "SERVER_PORT",   value = "8080" }
+    ]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/ecs/supervision-api"
+        "awslogs-region"        = "eu-west-3"
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+    healthCheck = {
+      command     = ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval    = 30
+      timeout     = 5
+      retries     = 3
+      startPeriod = 60  # Spring Boot prend ~44s sur Fargate
+    }
+  }])
+}
+```
+
+> `startPeriod = 60` : ECS ignore les health check failures pendant les 60 premières secondes, évitant les restarts prématurés pendant le démarrage Spring Boot.
+
+### 4.5 ECS Service
+
+```hcl
+resource "aws_ecs_service" "supervision_api" {
+  name            = "supervision-api"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.supervision_api.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = [aws_subnet.private.id]
+    security_groups  = [aws_security_group.ecs_tasks.id]
+    assign_public_ip = false  # subnet privé, pas d'IP publique
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.backend.arn
+    container_name   = "supervision-api"
+    container_port   = 8080
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]  # déploiements manuels via ECR/ECS
+  }
+}
+```
+
+---
+
+## 5. ALB — modifications (alb.tf)
+
+Deux changements critiques par rapport à la config initiale :
+
+| Paramètre | Avant | Après | Raison |
+|-----------|-------|-------|--------|
+| `target_type` | `"instance"` | `"ip"` | Fargate utilise awsvpc (ENI), pas d'instance EC2 |
+| `health_check.path` | `"/health"` | `"/actuator/health"` | Spring Boot Actuator expose ce chemin |
+
+> **Piège** : Modifier `target_type` détruit et recrée le Target Group. Si un listener y est attaché, Terraform entre dans un cycle destroy-before-create. Solution : `terraform state rm aws_lb_target_group.backend` puis apply.
+
+---
+
+## 6. Apply Terraform
+
+```powershell
+cd terraform/environments/dev
+
+# Apply ciblé pour la policy IAM uniquement
+terraform apply -target="aws_iam_role_policy.supervision_api_task"
+
+# Apply complet
+terraform apply
+```
+
+---
+
+## 7. Déploiement ECS
+
+Après chaque push ECR, forcer un nouveau déploiement :
+
+```powershell
+aws ecs update-service `
+  --cluster smart-assembly-cluster `
+  --service supervision-api `
+  --force-new-deployment `
+  --region eu-west-3
+```
+
+Suivre le déploiement :
+
+```powershell
+aws ecs describe-services `
+  --cluster smart-assembly-cluster `
+  --services supervision-api `
+  --region eu-west-3 `
+  --query "services[0].{running:runningCount,pending:pendingCount,events:events[0:3]}"
+```
+
+---
+
+## 8. Validation
+
+### 8.1 Health check ALB
+
+```powershell
+aws elbv2 describe-target-health `
+  --target-group-arn arn:aws:elasticloadbalancing:eu-west-3:169237360990:targetgroup/smart-assembly-supervision-tg/35f6af14df48a375 `
+  --region eu-west-3 `
+  --query "TargetHealthDescriptions[*].{IP:Target.Id,State:TargetHealth.State}"
+```
+
+Résultat attendu : `"State": "healthy"`
+
+### 8.2 Tests API via ALB
+
+```powershell
+$ALB = "http://smart-assembly-alb-522870733.eu-west-3.elb.amazonaws.com"
+
+# Health check Spring Boot
+curl $ALB/actuator/health
+# → {"status":"UP",...}
+
+# Liste des machines (DynamoDB Scan)
+curl $ALB/api/machines
+# → [{"idPoste":"poste_1","statut":"EN_INTERVENTION",...}, ...]
+
+# Alertes (DynamoDB Scan + FilterExpression)
+curl $ALB/api/alerts
+# → {"count":0,"alerts":[]}
+```
+
+### 8.3 Résultats obtenus
+
+| Endpoint | Status | Réponse |
+|----------|--------|---------|
+| `/actuator/health` | **200 OK** | `{"status":"UP"}` |
+| `/api/machines` | **200 OK** | 3 machines depuis DynamoDB |
+| `/api/alerts` | **200 OK** | `{"count":0,"alerts":[]}` |
+
+---
+
+## 9. Incident rencontré — KMS Decrypt
+
+### Symptôme
+
+```
+HTTP 500 sur /api/machines et /api/alerts
+```
+
+Logs CloudWatch :
+```
+software.amazon.awssdk.services.dynamodb.model.DynamoDbException:
+User: arn:aws:sts::169237360990:assumed-role/smart-assembly-supervision-api-task-role/...
+is not authorized to perform: kms:Decrypt
+on resource: arn:aws:kms:eu-west-3:169237360990:key/7d2fd7d2-6d2a-4ce9-beb3-b61621aa90aa
+```
+
+### Cause
+
+La table DynamoDB `machine_state` est chiffrée avec une Customer Managed Key (CMK). Le Task Role avait les permissions `dynamodb:Scan/GetItem/Query` mais pas `kms:Decrypt`. DynamoDB déchiffre les données à la lecture en appelant KMS — ce que le Task Role ne pouvait pas faire.
+
+### Fix
+
+Ajout d'un statement KMS dans `aws_iam_role_policy.supervision_api_task` :
+
+```hcl
+{
+  Sid    = "KMSDecryptDynamoDB"
+  Effect = "Allow"
+  Action = ["kms:Decrypt", "kms:DescribeKey"]
+  Resource = "arn:aws:kms:eu-west-3:169237360990:key/7d2fd7d2-6d2a-4ce9-beb3-b61621aa90aa"
+}
+```
+
+Puis :
+```powershell
+terraform apply -target="aws_iam_role_policy.supervision_api_task"
+aws ecs update-service --cluster smart-assembly-cluster --service supervision-api --force-new-deployment --region eu-west-3
+```
+
+### Leçon
+
+**Toujours** ajouter `kms:Decrypt` sur la CMK quand un service accède à une ressource AWS chiffrée (DynamoDB, S3 SSE-KMS, Secrets Manager). L'erreur n'apparaît qu'à l'exécution, pas au déploiement.
+
+---
+
+## 10. Logs CloudWatch
+
+```powershell
+# Suivre les logs en temps réel
+aws logs tail /ecs/supervision-api --follow --region eu-west-3
+
+# Derniers 50 logs
+aws logs tail /ecs/supervision-api --since 30m --region eu-west-3
+```
+
+---
+
+## 11. Concepts clés retenus
+
+**awsvpc network mode** : Chaque task Fargate reçoit sa propre ENI (Elastic Network Interface) avec une IP privée. Le Target Group ALB doit être `target_type = "ip"` pour enregistrer cette IP, pas `"instance"`.
+
+**Default Credential Provider Chain** : Le SDK AWS Java/Spring découvre automatiquement les credentials. En local → `~/.aws/credentials`. Sur ECS → Task Metadata Endpoint (rôle injecté par ECS). Aucune configuration explicite de credentials dans le code.
+
+**IAM Dual-Role pattern** :
+- *Task Execution Role* = ECS agent (pull ECR, push logs CloudWatch) — géré par AWS
+- *Task Role* = l'application elle-même (DynamoDB, KMS, CloudWatch metrics) — à définir précisément
+
+**Spring Boot startPeriod** : Spring Boot 4.x démarre en ~44s sur Fargate 0.25 vCPU. Sans `startPeriod = 60`, ECS marque le container unhealthy et le redémarre en boucle avant qu'il soit prêt.
+
+---
+
+## Commit
+
+```powershell
+git add terraform/environments/dev/ecs.tf
+git add terraform/environments/dev/alb.tf
+git add src/supervision-api/
+git add docs/ecs/
+git add docs/runbooks/jour-39-ecs-fargate.md
+
+git commit -m "feat(jour-39): ECS Fargate supervision API + fix KMS Decrypt
+
+- ECR repository + lifecycle policy (5 images max)
+- ECS cluster smart-assembly-cluster (Container Insights enabled)
+- IAM dual-role: execution role + task role avec KMS Decrypt
+- Task Definition: Spring Boot 4.1, awsvpc, startPeriod=60
+- ECS Service: Fargate, subnet privé, ALB integration
+- ALB: target_type=ip, health_check=/actuator/health
+- Fix KMS: ajout kms:Decrypt sur CMK DynamoDB (machine_state)
+- Validation: /actuator/health 200, /api/machines 200 (3 machines), /api/alerts 200
+```
