@@ -106,11 +106,12 @@ jobs:
 
       - name: Upload SARIF to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: results.sarif
+          sarif_file: results_terraform.sarif
         continue-on-error: true
         # SARIF : résultats visibles dans GitHub → Security → Code scanning
+        # checkov génère results_terraform.sarif (pas results.sarif) depuis v3.x
 
 # =============================================================
 # Job 3 — Tests Python Lambda
@@ -143,11 +144,11 @@ jobs:
             --cov-fail-under=70
         # --cov-fail-under=70 : couverture minimale 70% requise
 
-      - name: Run Edge tests
-        run: |
-          pytest src/greengrass/tests/ -v --tb=short
-        continue-on-error: true
-        # continue-on-error : les tests edge sont optionnels (docker non dispo en CI)
+    #- name: Run Edge tests
+      # run: |
+      #  pytest src/greengrass/tests/ -v --tb=short
+      #  continue-on-error: true  
+      # continue-on-error : les tests edge sont optionnels (docker non dispo en CI)
 
 # =============================================================
 # Job 4 — Tests Spring Boot (supervision-api)

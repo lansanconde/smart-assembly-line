@@ -1,5 +1,5 @@
 """
-Tests unitaires — analyze_vibration_handler.py (Jour 38 CI/CD)
+Tests unitaires — analyze_vibration_handler.py (CI/CD)
 
 Teste les vraies fonctions du handler Lambda :
   - evaluate_status()          : logique de seuils (pure, pas d'AWS)
