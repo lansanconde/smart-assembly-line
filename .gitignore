@@ -1,16 +1,51 @@
-# Terraform
+# ── Terraform ────────────────────────────────────────────────────
 **/.terraform/
-terraform/environments/dev/terraform.tfstate
-terraform/environments/dev/.terraform.lock.hcl
-terraform/environments/dev/terraform.tfstate*.backup
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate*.backup
 
-# Credentials — JAMAIS commité
+# ── Credentials — JAMAIS commité ────────────────────────────────
 infra/secrets.tfvars
 *.tfvars
 
-# Certificats IoT — JAMAIS commité (clés privées)
+# ── Certificats IoT — JAMAIS commité (clés privées) ─────────────
 src/iot-simulator/certs/
 src/greengrass/certs/
 
-# fichier Json de buffer local (utiser par circuit breaker)
+# ── Buffer local Greengrass ──────────────────────────────────────
 src/greengrass/buffer/
+
+# ── Artefacts de build Lambda ────────────────────────────────────
+src/lambda/**/*.zip
+terraform/environments/**/*.zip
+
+# ── Python cache ─────────────────────────────────────────────────
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.pytest_cache/
+
+# ── Java / Maven ─────────────────────────────────────────────────
+src/supervision-api/target/
+*.class
+*.jar
+
+# ── IDE ──────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+
+# ── Fichiers temporaires de lab (racine) ─────────────────────────
+/e2e_validation.py
+/event_malformed.json
+/events_load.json
+/expr.json
+/expr_gsi.json
+/gitignore
+/item.json
+/key.json
+/reset.json
+/store_logs.txt
+/store_logs_full.txt
+terraform/environments/dev/expr.json
+terraform/environments/dev/key.json
