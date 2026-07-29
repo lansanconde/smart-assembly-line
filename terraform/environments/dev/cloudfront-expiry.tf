@@ -82,9 +82,9 @@ resource "aws_iam_role_policy" "cf_expiry_lambda" {
         Resource = "*"
       },
       {
-        Sid    = "Logs"
-        Effect = "Allow"
-        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Sid      = "Logs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "arn:aws:logs:*:*:*"
       }
     ]
@@ -157,8 +157,8 @@ resource "aws_scheduler_schedule" "cf_expiry" {
   target {
     arn      = aws_lambda_function.cf_expiry.arn
     role_arn = aws_iam_role.scheduler_cf_expiry.arn
-    input    = jsonencode({
-      reason      = "job-search-deadline-2026-12"
+    input = jsonencode({
+      reason       = "job-search-deadline-2026-12"
       triggered_by = "EventBridge Scheduler"
     })
   }
