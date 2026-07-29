@@ -250,15 +250,15 @@ cd src/supervision-api
 
 ---
 
-## Certification & Entretien
+## Objectif
 
 Ce projet est conçu pour répondre aux questions de **System Design niveau Staff Architect** :
 
 > *"Design a real-time monitoring system for 100,000 industrial IoT sensors across multiple sites."*
 
-Réponse structurée : **[Template 5 minutes →](docs/architecture/synthese-finale.md#8-réponse-system-design--template-entretien)**
+
+```Réponse structurée : **[Template 5 minutes →](docs/architecture/synthese-finale.md#8-réponse-system-design--template-entretien)**
 
 ---
 
-*Projet réalisé dans le cadre d'un plan de montée en compétence AWS Staff Architect — Industrie 4.0/5.0 — Juillet/Août 2026*  
-*Cible : postes dans l'Industrie 4.0*
+*Projet fil rouge conçu pour démontrer une maîtrise opérationnelle de l'architecture AWS en contexte industriel critique — Industrie 4.0/5.0*
