@@ -138,6 +138,7 @@ nav:
       - Composants & Services: architecture/components.md
       - Sécurité & IAM: architecture/security.md
       - Consolidation des axes: architecture/consolidation.md
+      - "🎯 Synthèse finale": architecture/synthese-finale.md
       - "Multi-site — 100K capteurs": architecture/multi-site.md
       - "Modèle de données multi-site": architecture/multi-site-data-model.md
       - "Multi-région — Active/Passive": architecture/multi-region.md
@@ -179,3 +180,4 @@ nav:
       - "Jour 46 — Architecture multi-région": runbooks/jour-46-multi-region.md
       - "Jour 47 — Sécurité avancée": runbooks/jour-47-advanced-security.md
       - "Jour 48 — X-Ray Distributed Tracing": runbooks/jour-48-xray.md
+      - "Jour 47 (plan) — Synthèse architecture": runbooks/jour-47-synthese.md
