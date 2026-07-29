@@ -15,33 +15,46 @@ data "archive_file" "cf_expiry" {
     filename = "handler.py"
     content  = <<-PYTHON
 import boto3
-import json
 import os
 
-DISTRIBUTION_ID = os.environ["CF_DISTRIBUTION_ID"]
+CF_DISTRIBUTION_ID = os.environ["CF_DISTRIBUTION_ID"]
+ECS_CLUSTER        = os.environ["ECS_CLUSTER"]
+ECS_SERVICE        = os.environ["ECS_SERVICE"]
 
-def handler(event, context):
-    cf = boto3.client("cloudfront")
-
-    # Récupérer la config actuelle + ETag (nécessaire pour UpdateDistribution)
-    resp   = cf.get_distribution_config(Id=DISTRIBUTION_ID)
+def disable_cloudfront():
+    cf   = boto3.client("cloudfront")
+    resp = cf.get_distribution_config(Id=CF_DISTRIBUTION_ID)
     config = resp["DistributionConfig"]
     etag   = resp["ETag"]
 
     if not config["Enabled"]:
-        print(f"[INFO] Distribution {DISTRIBUTION_ID} déjà désactivée — rien à faire.")
-        return {"status": "already_disabled", "distribution_id": DISTRIBUTION_ID}
+        print(f"[INFO] CloudFront {CF_DISTRIBUTION_ID} déjà désactivée.")
+        return "already_disabled"
 
     config["Enabled"] = False
+    cf.update_distribution(DistributionConfig=config, Id=CF_DISTRIBUTION_ID, IfMatch=etag)
+    print(f"[OK] CloudFront {CF_DISTRIBUTION_ID} désactivée.")
+    return "disabled"
 
-    cf.update_distribution(
-        DistributionConfig=config,
-        Id=DISTRIBUTION_ID,
-        IfMatch=etag
+def stop_ecs():
+    ecs = boto3.client("ecs")
+    ecs.update_service(
+        cluster=ECS_CLUSTER,
+        service=ECS_SERVICE,
+        desiredCount=0
     )
+    print(f"[OK] ECS service {ECS_SERVICE} → desiredCount=0 (Fargate stoppé).")
+    return "stopped"
 
-    print(f"[OK] Distribution {DISTRIBUTION_ID} désactivée — fin de la période de recherche d'emploi (2026-12).")
-    return {"status": "disabled", "distribution_id": DISTRIBUTION_ID}
+def handler(event, context):
+    cf_status  = disable_cloudfront()
+    ecs_status = stop_ecs()
+
+    print(f"[DONE] Fin période recherche emploi 2026-12 — CF: {cf_status}, ECS: {ecs_status}")
+    return {
+        "cloudfront": cf_status,
+        "ecs":        ecs_status
+    }
 PYTHON
   }
 }
@@ -82,6 +95,12 @@ resource "aws_iam_role_policy" "cf_expiry_lambda" {
         Resource = "*"
       },
       {
+        Sid      = "ECSStop"
+        Effect   = "Allow"
+        Action   = ["ecs:UpdateService"]
+        Resource = "arn:aws:ecs:eu-west-3:*:service/smart-assembly-cluster/supervision-api"
+      },
+      {
         Sid      = "Logs"
         Effect   = "Allow"
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
@@ -103,8 +122,9 @@ resource "aws_lambda_function" "cf_expiry" {
 
   environment {
     variables = {
-      # L'ID est connu après le premier apply de cloudfront-api.tf
       CF_DISTRIBUTION_ID = aws_cloudfront_distribution.supervision_api.id
+      ECS_CLUSTER        = "smart-assembly-cluster"
+      ECS_SERVICE        = "supervision-api"
     }
   }
 
