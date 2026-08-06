@@ -1275,60 +1275,36 @@
 <section id="stack">
   <div class="container">
     <div class="section-label">Stack technique</div>
-    <h2 class="section-title">Technologies utilisées</h2>
-    <p class="section-desc">Infrastructure 100% AWS, provisionnée en Terraform. Backend Spring Boot, simulation IoT en Python.</p>
+    <h2 class="section-title">Ce qui tourne en production</h2>
+    <p class="section-desc">4 couches déployées sur AWS eu-west-3, provisionnées 100% en Terraform.</p>
     <div class="stack-grid">
       <div class="stack-group">
-        <div class="stack-group-title">IoT & Edge</div>
+        <div class="stack-group-title">🔌 IoT & Edge</div>
         <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>AWS IoT Core</div>
         <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>Greengrass v2</div>
         <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>MQTT / TLS</div>
         <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>Device Shadow</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>Rules Engine</div>
       </div>
       <div class="stack-group">
-        <div class="stack-group-title">Event-Driven</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent2);"></div>Lambda (Python 3.12)</div>
+        <div class="stack-group-title">⚡ Event-Driven</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent2);"></div>Lambda</div>
         <div class="stack-item"><div class="stack-dot" style="background:var(--accent2);"></div>EventBridge</div>
         <div class="stack-item"><div class="stack-dot" style="background:var(--accent2);"></div>SQS + DLQ</div>
         <div class="stack-item"><div class="stack-dot" style="background:var(--accent2);"></div>Step Functions</div>
       </div>
       <div class="stack-group">
-        <div class="stack-group-title">Data & Stockage</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>DynamoDB (PAY_PER_REQUEST)</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>S3 (data lake)</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>KMS CMK</div>
+        <div class="stack-group-title">🗄️ Data & API</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>DynamoDB</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>S3</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>ECS Fargate + Spring Boot</div>
+        <div class="stack-item"><div class="stack-dot" style="background:var(--accent3);"></div>CloudFront + ALB</div>
       </div>
       <div class="stack-group">
-        <div class="stack-group-title">API & Containers</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>ECS Fargate</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>Spring Boot 3 / Java 21</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>ALB multi-AZ</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>ECR</div>
-        <div class="stack-item"><div class="stack-dot" style="background:var(--accent);"></div>App Auto Scaling</div>
-      </div>
-      <div class="stack-group">
-        <div class="stack-group-title">Observabilité</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>CloudWatch Dashboard</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>CloudWatch Alarms</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>CloudTrail</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>X-Ray Distributed Tracing</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#a78bfa;"></div>Container Insights</div>
-      </div>
-      <div class="stack-group">
-        <div class="stack-group-title">Sécurité avancée</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#ef4444;"></div>GuardDuty (MEDIUM/HIGH)</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#ef4444;"></div>Security Hub (FSBP + CIS)</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#ef4444;"></div>AWS Config (7 règles)</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#ef4444;"></div>Lambda remediation auto</div>
-      </div>
-      <div class="stack-group">
-        <div class="stack-group-title">IaC & CI/CD</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>Terraform 1.9</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>GitHub Actions</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>Checkov (SARIF)</div>
-        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>S3 backend TF state</div>
+        <div class="stack-group-title">🔧 Ops & IaC</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>Terraform</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>GitHub Actions (CI/CD)</div>
         <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>Docker / ECR</div>
+        <div class="stack-item"><div class="stack-dot" style="background:#fbbf24;"></div>CloudWatch + X-Ray</div>
       </div>
     </div>
   </div>

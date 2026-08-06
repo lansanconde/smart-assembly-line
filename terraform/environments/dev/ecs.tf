@@ -245,11 +245,14 @@ resource "aws_ecs_task_definition" "supervision_api" {
     ]
 
     healthCheck = {
-      command     = ["CMD-SHELL", "curl -f http://localhost:${local.supervision_api_port}/actuator/health || exit 1"]
+      # /actuator/health peut retourner 503 si un health indicator (ex: DynamoDB) est DOWN
+      # → on check uniquement que Tomcat répond, pas les dépendances applicatives
+      # L'ALB fait son propre health check indépendant
+      command     = ["CMD-SHELL", "curl -f http://localhost:${local.supervision_api_port}/actuator || exit 1"]
       interval    = 30
-      timeout     = 5
-      retries     = 3
-      startPeriod = 60
+      timeout     = 10
+      retries     = 5
+      startPeriod = 90
     }
 
     logConfiguration = {
