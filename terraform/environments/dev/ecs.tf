@@ -305,7 +305,9 @@ resource "aws_ecs_service" "supervision_api" {
   ]
 
   lifecycle {
-    ignore_changes = [task_definition]
+    ignore_changes = [task_definition, desired_count]
+    # desired_count : géré manuellement (stop/start pour économiser les crédits)
+    # task_definition : géré par le pipeline CI/CD (docker push + force-new-deployment)
   }
 
   tags = {
