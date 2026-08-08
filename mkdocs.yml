@@ -134,52 +134,49 @@ nav:
   - Accueil: index.md
 
   - Architecture:
-      - Vue d'ensemble: architecture/global.md
-      - Composants & Services: architecture/components.md
-      - Sécurité & IAM: architecture/security.md
-      - Consolidation des axes: architecture/consolidation.md
-      - "🎯 Synthèse finale": architecture/synthese-finale.md
-      - "Multi-site — 100K capteurs": architecture/multi-site.md
-      - "Modèle de données multi-site": architecture/multi-site-data-model.md
-      - "Multi-région — Active/Passive": architecture/multi-region.md
-      - "Terraform multi-région": architecture/multi-region-terraform.md
+      - Vue d'ensemble: ARCH/SAAL-ARCH-001-architecture-globale.md
+      - Composants & Services: ARCH/SAAL-ARCH-002-composants.md
+      - "Multi-site — 100K capteurs": ARCH/SAAL-ARCH-003-multi-site.md
+      - "Modèle de données multi-site": ARCH/SAAL-ARCH-004-modele-donnees-multi-site.md
+      - "Multi-région — Active/Passive": ARCH/SAAL-ARCH-005-multi-region.md
+      - Consolidation des axes: ARCH/SAAL-ARCH-006-consolidation.md
+      - "🎯 Synthèse finale": ARCH/SAAL-ARCH-007-synthese-finale.md
 
   - Services AWS:
-      - IoT & Containers:
-          - "supervision-api — ECS Fargate": ecs/supervision.md
-          - ECS Auto Scaling: ecs/autoscaling.md
+      - Infrastructure:
+          - "supervision-api — ECS Fargate": INFRA/SAAL-INFRA-001-ecs-supervision-api.md
+          - ECS Auto Scaling: INFRA/SAAL-INFRA-002-ecs-autoscaling.md
+          - "CAPEX / OPEX / ROI": INFRA/SAAL-INFRA-003-optimisation-couts.md
       - Observabilité:
-          - CloudWatch Dashboard: cloudwatch/dashboard.md
-          - CloudWatch Alarms: monitoring/alarms.md
-          - "CloudTrail — Audit & Traçabilité": observability/cloudtrail.md
-          - "X-Ray — Distributed Tracing": observability/xray.md
-          - "Terraform X-Ray": observability/xray-terraform.md
-      - Sécurité avancée:
-          - "GuardDuty · Security Hub · Config": security/advanced-security.md
-          - "Terraform sécurité": security/advanced-security-terraform.md
+          - CloudWatch Dashboard: OPS/SAAL-OPS-001-cloudwatch-dashboard.md
+          - CloudWatch Alarms: OPS/SAAL-OPS-002-alarmes.md
+          - "X-Ray — Distributed Tracing": OPS/SAAL-OPS-003-xray-tracing.md
+          - "Terraform X-Ray": OPS/SAAL-OPS-004-xray-terraform.md
+          - "CloudTrail — Audit & Traçabilité": OPS/SAAL-OPS-005-cloudtrail-audit.md
+      - Sécurité:
+          - "Architecture sécurité & IAM": SEC/SAAL-SEC-001-architecture-securite.md
+          - "GuardDuty · Security Hub · Config": SEC/SAAL-SEC-002-securite-avancee.md
+          - "Terraform sécurité": SEC/SAAL-SEC-003-securite-terraform.md
 
   - Résilience & Déploiement:
       - Résilience & Chaos:
-          - "Axe 3 — Retry Storm": chaos/chaos_axe3.md
-          - Rapport d'expérience: chaos/rapport_chaos_axe3.md
+          - "Axe 3 — Retry Storm": RES/SAAL-RES-001-chaos-engineering.md
+          - Rapport d'expérience: RES/SAAL-RES-002-rapport-chaos.md
       - Déploiement:
-          - "Canary — ALB Weighted Target Groups": deployment/canary.md
-          - "CI/CD — GitHub Actions": cicd/cicd.md
-
-  - Cost Optimization:
-      - "CAPEX / OPEX / ROI": cost/cost-optimization.md
+          - "Canary — ALB Weighted Target Groups": CICD/SAAL-CICD-002-canary-deployment.md
+          - "CI/CD — GitHub Actions": CICD/SAAL-CICD-001-pipeline-github-actions.md
+          - "Terraform multi-région": CICD/SAAL-CICD-003-terraform-multi-region.md
 
   - Runbooks:
-      - Administration & Ops: runbook/index.md
-      - "Jour 40 — CloudWatch Dashboard": runbooks/jour-40-cloudwatch-dashboard.md
-      - "Jour 41 — ECS Auto Scaling": runbooks/jour-41-ecs-autoscaling.md
-      - "Jour 42 — Canary Deployment": runbooks/jour-42-canary-deployment.md
-      - "Jour 43 — Portfolio AWS": runbooks/jour-43-portfolio.md
-      - "Jour 44 — Cost Optimization": runbooks/jour-44-cost-optimization.md
-      - "Jour 45 — Architecture multi-site": runbooks/jour-45-multi-site.md
-      - "Jour 46 — Architecture multi-région": runbooks/jour-46-multi-region.md
-      - "Jour 47 — Sécurité avancée": runbooks/jour-47-advanced-security.md
-      - "Jour 48 — X-Ray Distributed Tracing": runbooks/jour-48-xray.md
-      - "Jour 47 (plan) — Synthèse architecture": runbooks/jour-47-synthese.md
-      - "Jour 50 — Finalisation repo GitHub": runbooks/jour-50-finalisation.md
-      - "Jour 51 — Portfolio API Live + CloudFront expiry": runbooks/jour-51-portfolio-api.md
+      - CloudWatch Dashboard: RUN/SAAL-RUN-001-cloudwatch-dashboard.md
+      - ECS Auto Scaling: RUN/SAAL-RUN-002-ecs-autoscaling.md
+      - Canary Deployment: RUN/SAAL-RUN-003-canary-deployment.md
+      - Portfolio AWS: RUN/SAAL-RUN-004-portfolio.md
+      - Cost Optimization: RUN/SAAL-RUN-005-cost-optimization.md
+      - Architecture multi-site: RUN/SAAL-RUN-006-multi-site.md
+      - Architecture multi-région: RUN/SAAL-RUN-007-multi-region.md
+      - Sécurité avancée: RUN/SAAL-RUN-008-securite-avancee.md
+      - Synthèse architecture: RUN/SAAL-RUN-009-synthese-architecture.md
+      - X-Ray Distributed Tracing: RUN/SAAL-RUN-010-xray-tracing.md
+      - Finalisation repo GitHub: RUN/SAAL-RUN-011-finalisation.md
+      - Portfolio API Live: RUN/SAAL-RUN-012-portfolio-api.md

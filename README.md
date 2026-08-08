@@ -1,108 +1,85 @@
-# Smart Aerospace Assembly Line — AWS Staff Architect Portfolio
+# Smart Aerospace Assembly Line
 
-> Système de supervision industrielle IoT temps réel sur AWS  
-> Architecture event-driven · Edge computing · Résilience chaos-tested · 100 % Terraform  
-> **Lansana CONDÉ** — Architecte logiciel Industrie 4.0 · [Portfolio](https://do1vmragia1j9.cloudfront.net) · [LinkedIn](https://www.linkedin.com/in/lansana-conde)
-
----
-
-## Contexte
-
-Simulation d'une ligne d'assemblage aérospatiale avec supervision en temps réel de capteurs industriels (vibration, température, pression). Le projet couvre l'ensemble du stack — de l'edge (Greengrass) jusqu'au DR multi-région (eu-central-1) — en passant par la détection d'anomalies, l'orchestration, l'observabilité et la sécurité avancée.
-
-**Cible de scalabilité :** 100 000 capteurs · 1 000 événements/seconde · RTO < 5 min · RPO < 1 s
+> Supervision IoT temps réel d'une ligne d'assemblage aérospatiale — AWS `eu-west-3` · 100% Terraform · Event-driven  
+> **Lansana CONDÉ** · [Portfolio](https://do1vmragia1j9.cloudfront.net) · [LinkedIn](https://www.linkedin.com/in/lansana-conde)
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  EDGE (Atelier industriel)                                        │
-│  Capteurs MQTT → Greengrass v2 (EdgeFilter + TinyML + Buffer)    │
-└──────────────────────┬───────────────────────────────────────────┘
-                       │ MQTT over TLS — agrégation 100:1
-┌──────────────────────▼───────────────────────────────────────────┐
-│  INGESTION — AWS IoT Core eu-west-3                               │
-│  Rules Engine SQL · Thing Groups / Certificats X.509             │
-└──────┬───────────────┬──────────────────────────────────────────┘
-       │               │
-  IoT Rule         IoT Rule
-       │               │
-┌──────▼──────┐  ┌─────▼──────────────────────────────────────────┐
-│  Kinesis    │  │  Compute — Axe 1 Core                           │
-│  1000 evt/s │  │  Lambda (analyze_vibration · DetectAnomaly)     │
-│  shards dim.│  │  EventBridge (bus SmartAssemblyLine)            │
-└──────┬──────┘  │  SQS (InterventionQueue + DLQ)                  │
-       │  ▲      │  Step Functions (InterventionWorkflow)           │
-       └──┘      └──────────────────┬──────────────────────────────┘
-  consumer                          │
-  Lambda                     ┌──────▼──────────────────────────────┐
-                              │  Data — Axe 2                       │
-                              │  DynamoDB machine_state_v2          │
-                              │  (Global Tables · PITR · KMS)       │
-                              │  S3 raw-data lake (CRR · Glacier)   │
-                              └──────────────────┬──────────────────┘
-                                                 │ query
-┌────────────────────────────────────────────────▼──────────────────┐
-│  API & Supervision                                                  │
-│  ECS Fargate supervision-api · ALB multi-AZ · Canary deployment   │
-│  X-Ray sidecar daemon · CloudWatch · CloudTrail                   │
-└────────────────────────────────────────────────────────────────────┘
-                              │
-                     Route 53 Failover
-                              │
-┌─────────────────────────────▼──────────────────────────────────────┐
-│  DISASTER RECOVERY — eu-central-1 (Francfort)                      │
-│  DynamoDB Global Tables Replica · S3 CRR · ECS Warm Standby       │
-└────────────────────────────────────────────────────────────────────┘
+🏭 Edge (Atelier)
+   Simulateur MQTT → Greengrass v2 (TinyML + buffer offline)
+          │ MQTT/TLS 8883
+          ▼
+   AWS IoT Core — Rules Engine SQL · mTLS X.509
+          │
+    ┌─────┴──────┐
+    ▼            ▼
+Lambda           EventBridge → SQS + DLQ → Step Functions
+analyze_vibration       │
+    │                   ▼
+    ├── DynamoDB    SNS → Email opérateur
+    └── S3
+          │
+          ▼
+   ECS Fargate — Spring Boot API :8080
+          │
+   ALB → CloudFront (dv03heuf7nfn6)
+
+Observabilité : CloudWatch · X-Ray · GuardDuty · CloudTrail
+DR            : DynamoDB Global Tables (eu-west-1) · Route 53 Failover
 ```
 
-📄 **[Diagramme complet interactif →](docs/architecture/synthese-finale.md)**
+---
+
+## Stack déployée
+
+| Couche | Services |
+|--------|---------|
+| **Edge** | Greengrass v2, TinyML (Isolation Forest), buffer JSONL |
+| **Ingestion** | IoT Core, Rules Engine, Device Shadow, mTLS X.509 |
+| **Compute** | Lambda ×4, EventBridge, SQS+DLQ, Step Functions |
+| **Data** | DynamoDB (Global Tables, KMS), S3 data lake |
+| **API** | ECS Fargate Spring Boot, ALB multi-AZ, CloudFront ×2 |
+| **Sécurité** | KMS CMK, IAM least privilege, GuardDuty, Security Hub, Config |
+| **Observabilité** | CloudWatch, X-Ray, CloudTrail, SNS alerting |
+| **IaC / CI/CD** | Terraform 100%, GitHub Actions (validate → test → apply) |
+| **DR** | DynamoDB Global Tables eu-west-1, Route 53 Failover |
 
 ---
 
-## Stack technique
-
-| Couche | Services AWS |
-|---|---|
-| **Edge** | AWS IoT Greengrass v2, MQTT over TLS, TinyML (TensorFlow Lite) |
-| **Ingestion** | AWS IoT Core, Rules Engine SQL, Thing Groups, Device Certificates |
-| **Compute** | Lambda (Python), EventBridge, SQS + DLQ, Step Functions |
-| **Data** | DynamoDB (Global Tables, GSI, TTL, PITR), S3 (CRR, Lifecycle), Kinesis |
-| **API** | ECS Fargate (Spring Boot), ALB multi-AZ, ECR, API Canary |
-| **Observabilité** | CloudWatch (Dashboard + Alarms), X-Ray (Distributed Tracing), CloudTrail |
-| **Sécurité** | KMS CMK, IAM least privilege, VPC Endpoints, GuardDuty, Security Hub (FSBP + CIS), AWS Config |
-| **CI/CD** | GitHub Actions, Terraform, Docker |
-| **DR** | Route 53 Failover, DynamoDB Global Tables, S3 Cross-Region Replication |
-
----
-
-## Patterns de résilience
+## Résilience
 
 | Pattern | Implémentation |
-|---|---|
-| **Idempotency** | Clé `id_mesure` sur Lambda + condition expression DynamoDB |
-| **Retry + Backoff exponentiel** | Backoff avec jitter, max 3 tentatives, DLQ en sortie |
-| **Dead Letter Queue** | SQS DLQ + alarme CloudWatch sur profondeur DLQ |
-| **Circuit Breaker** | Step Functions — état « circuit ouvert » après N échecs |
-| **Backpressure** | SQS rejet propre si backlog > seuil |
-| **Edge Buffering** | Greengrass LocalBuffer si IoT Core indisponible |
-| **Jitter reconnexion** | Reconnexion aléatoire 0-30s → évite le retry storm |
-| **Canary Deployment** | ALB Weighted Target Groups 10% → rollback automatique si erreur |
-| **Active/Passive DR** | Route 53 Failover + DynamoDB Global Tables (RPO < 1s) |
+|---------|---------------|
+| Retry storm | Full Jitter reconnexion — reconnexions étalées sur 0–60s |
+| Circuit Breaker | Greengrass CLOSED/OPEN/HALF_OPEN |
+| Buffer offline | Greengrass JSONL local — replay à la reconnexion |
+| Dead Letter Queue | SQS DLQ après 3 échecs + alarme CloudWatch |
+| Orchestration retry | Step Functions backoff exponentiel |
+| Failover géo | Route 53 → bascule eu-west-1 si Paris KO (RTO < 5min) |
 
 ---
 
-## Chaos Engineering — 5 scénarios testés
+## Métriques clés
 
-| # | Scénario | Résultat |
-|---|---|---|
-| 1 | **IoT Core Down 10 min** | Greengrass buffer local, 0 donnée perdue, reprise en 18s |
-| 2 | **Lambda Concurrency Limit** | SQS absorbe, DLQ capture, alarme CloudWatch, 0 perte |
-| 3 | **EventBridge Delay 30s** | Lambda directe non impactée, alertes différées seulement |
-| 4 | **DynamoDB Throttling** | Retry backoff + DLQ, données sauvegardées, 0 perte |
-| 5 | **Retry Storm (200 capteurs simultanés)** | Jitter étale la reconnexion sur 30s, 0 throttling IoT Core |
+| Métrique | Valeur |
+|----------|--------|
+| Latence end-to-end (capteur → alerte) | **104 ms** (X-Ray) |
+| Taux succès reconnexion (chaos test) | 98% avec jitter |
+| RTO | < 5 min |
+| RPO | < 30 s |
+| Coût infrastructure | ~$18–30/mois |
+
+---
+
+## URLs
+
+| Service | URL |
+|---------|-----|
+| Portfolio | https://do1vmragia1j9.cloudfront.net |
+| API supervision | https://dv03heuf7nfn6.cloudfront.net/api/machines |
 
 ---
 
@@ -111,151 +88,39 @@ Simulation d'une ligne d'assemblage aérospatiale avec supervision en temps rée
 ```
 smart-assembly-line/
 ├── src/
-│   ├── lambda/
-│   │   ├── analyze_vibration/   # Détection anomalie (Python)
-│   │   ├── detect_anomaly/      # Classification seuil
-│   │   ├── log_intervention/    # Traçabilité S3
-│   │   ├── sqs_processor/       # Consommateur SQS
-│   │   ├── store_metrics/       # Métriques CloudWatch custom
-│   │   └── tests/               # Tests unitaires pytest
-│   ├── greengrass/
-│   │   ├── analyzer.py          # EdgeFilter + LocalBuffer
-│   │   ├── detector.py          # Détection locale TinyML
-│   │   └── docker-compose.yml   # Stack edge locale
-│   ├── iot-simulator/
-│   │   ├── publish_vibration.py # Simulateur capteur MQTT
-│   │   └── stress_test.py       # Test de charge
-│   ├── supervision-api/         # Backend Spring Boot (Java)
-│   └── portfolio/               # Portfolio CloudFront (HTML/CSS)
-├── terraform/
-│   └── environments/dev/        # Infrastructure complète IaC
-│       ├── vpc.tf               # VPC + subnets + NAT
-│       ├── iot.tf               # IoT Core + Things + Rules
-│       ├── lambda.tf            # Lambda functions + layers
-│       ├── dynamodb.tf          # Tables + GSI + autoscaling
-│       ├── ecs.tf               # ECS Fargate + task definitions
-│       ├── alb.tf               # ALB + target groups
-│       ├── eventbridge.tf       # Bus + rules + targets
-│       ├── sqs.tf               # Queues + DLQ
-│       ├── step_functions.tf    # State machines
-│       ├── kinesis.tf           # Streams + shards
-│       ├── kms.tf               # CMK par service
-│       ├── cloudwatch.tf        # Dashboard + Alarms
-│       ├── cloudtrail.tf        # Audit trail
-│       ├── canary.tf            # Weighted target groups
-│       ├── s3.tf                # Buckets + lifecycle
-│       └── ...
-├── docs/                        # Documentation MkDocs Material
-│   ├── architecture/            # Vue d'ensemble, synthèse, multi-site, multi-région
-│   ├── observability/           # CloudWatch, CloudTrail, X-Ray
-│   ├── security/                # GuardDuty, Security Hub, Config
-│   ├── chaos/                   # Rapports chaos engineering
-│   ├── cost/                    # CAPEX/OPEX/ROI
-│   └── runbooks/                # Jour 40 → Jour 50
-├── mkdocs.yml                   # Documentation Material for MkDocs
-└── .github/workflows/ci.yml     # Pipeline CI/CD GitHub Actions
+│   ├── lambda/              # analyze_vibration, store_metrics, sqs_processor...
+│   ├── greengrass/          # EdgeFilter, AnomalyDetector, buffer local
+│   ├── iot-simulator/       # publish_vibration.py (simulateur MQTT)
+│   ├── supervision-api/     # Spring Boot Java 21
+│   └── portfolio/           # HTML/CSS CloudFront
+├── terraform/environments/dev/
+│   ├── vpc.tf · iot.tf · lambda.tf · ecs.tf · alb.tf
+│   ├── dynamodb.tf · s3.tf · sqs.tf · eventbridge.tf
+│   ├── cloudfront-api.tf · cloudfront-expiry.tf
+│   ├── cloudwatch.tf · cloudtrail.tf · kms.tf
+│   └── step_functions.tf · greengrass.tf · kinesis.tf
+├── docs/                    # MkDocs Material (ARCH · OPS · SEC · CICD · RES · INFRA · RUN)
+├── mkdocs.yml
+└── .github/workflows/       # CI/CD GitHub Actions
 ```
 
 ---
 
-## Trade-offs documentés
-
-### SQS vs Kinesis vs Kafka
-
-- **SQS** → `InterventionQueue` : découplage simple, scaling auto, zéro opérationnel
-- **Kinesis** → `SmartAssemblyLine-Sensors` : ordre garanti par shard, multi-consommateurs, rejeu
-- **Kafka** → non retenu : coût d'exploitation non justifié à ce stade
-
-### Lambda vs ECS
-
-- **Lambda** → détection event-driven (scale à zéro, < 15 min, stateless)
-- **ECS Fargate** → `supervision-api` toujours active (API REST, état en mémoire)
-
-### DynamoDB vs RDS
-
-- **DynamoDB** → latence < 10ms constant à l'échelle, scaling automatique
-- **RDS** → justifié uniquement pour du reporting SQL complexe (hors scope actuel)
-
----
-
-## Métriques défendables
-
-| Métrique | Valeur |
-|---|---|
-| Capteurs actifs (cible) | 100 000 |
-| Throughput après Greengrass | 500 msg/s (agrégation 100:1) |
-| Latence end-to-end (vibration → alerte) | **104 ms** (mesuré X-Ray) |
-| WCU DynamoDB prod | 12 000 WCU/s provisioned |
-| RTO | < 5 minutes |
-| RPO | < 1 seconde |
-| Disponibilité cible | 99.99% |
-| Coût infra prod | ~1 834 €/mois |
-| ROI industriel | +69 700% (vs coût arrêts non planifiés) |
-
----
-
-## Documentation
-
-La documentation complète est générée avec **MkDocs Material** :
+## Lancer en local
 
 ```bash
-pip install mkdocs-material
-mkdocs serve       # http://localhost:8000
-mkdocs build       # génère le site statique
+# Infrastructure
+cd terraform/environments/dev && terraform init && terraform apply
+
+# Simulateur IoT
+pip install awsiotsdk && python src/iot-simulator/publish_vibration.py
+
+# Tests Lambda
+pip install pytest boto3 moto && pytest src/lambda/tests/
+
+# API Spring Boot
+cd src/supervision-api && ./mvnw spring-boot:run
+
+# Documentation
+pip install mkdocs-material && mkdocs serve
 ```
-
-📚 **Documentation en ligne** : [GitHub Pages](https://github.com/lansanconde/smart-assembly-line.git)
-
----
-
-## Setup local
-
-### Prérequis
-
-- AWS CLI configuré (`aws configure`)
-- Terraform >= 1.5
-- Python >= 3.11
-- Java 21 + Maven (pour supervision-api)
-- Docker
-
-### Déployer l'infrastructure
-
-```bash
-cd terraform/environments/dev
-terraform init
-terraform plan
-terraform apply
-```
-
-### Lancer le simulateur IoT
-
-```bash
-pip install awsiotsdk
-python src/iot-simulator/publish_vibration.py
-```
-
-### Lancer les tests Lambda
-
-```bash
-pip install pytest boto3 moto
-pytest src/lambda/tests/
-```
-
-### Lancer l'API locale
-
-```bash
-cd src/supervision-api
-./mvnw spring-boot:run
-```
-
----
-
-## Objectif
-
-Ce projet est conçu pour répondre aux questions de **System Design niveau Staff Architect** :
-
-> *"Design a real-time monitoring system for 100,000 industrial IoT sensors across multiple sites."*
-
----
-
-*Projet fil rouge conçu pour démontrer une maîtrise opérationnelle de l'architecture AWS en contexte industriel critique — Industrie 4.0/5.0*
