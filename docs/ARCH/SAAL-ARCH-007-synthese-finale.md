@@ -37,7 +37,7 @@ flowchart TD
         subgraph SERVE["Supervision"]
             ECS[ECS Fargate\nSpring Boot :8080\nPublic subnet]
             ALB[ALB\neu-west-3a/b]
-            CF_API[CloudFront API\ndv03heuf7nfn6]
+            CF_API[CloudFront API\nd16pjsamtbk0c1]
             CF_WEB[CloudFront Portfolio\ndo1vmragia1j9]
             DDB --> ECS --> ALB --> CF_API
         end
@@ -74,4 +74,4 @@ flowchart TD
 | Service | URL |
 |---------|-----|
 | Portfolio | https://do1vmragia1j9.cloudfront.net |
-| API supervision | https://dv03heuf7nfn6.cloudfront.net/api/machines |
+| API supervision | https://d16pjsamtbk0c1.cloudfront.net/api/machines |

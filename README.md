@@ -25,7 +25,7 @@ analyze_vibration       │
           ▼
    ECS Fargate — Spring Boot API :8080
           │
-   ALB → CloudFront (dv03heuf7nfn6)
+   ALB → CloudFront (d16pjsamtbk0c1)
 
 Observabilité : CloudWatch · X-Ray · GuardDuty · CloudTrail
 DR            : DynamoDB Global Tables (eu-west-1) · Route 53 Failover
@@ -79,7 +79,7 @@ DR            : DynamoDB Global Tables (eu-west-1) · Route 53 Failover
 | Service | URL |
 |---------|-----|
 | Portfolio | https://do1vmragia1j9.cloudfront.net |
-| API supervision | https://dv03heuf7nfn6.cloudfront.net/api/machines |
+| API supervision | https://d16pjsamtbk0c1.cloudfront.net/api/machines |
 
 ---
 

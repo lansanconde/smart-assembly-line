@@ -5,7 +5,7 @@
 | Distribution | ID | URL |
 |-------------|-----|-----|
 | Portfolio | `E271YNMVZ3GMXD` | do1vmragia1j9.cloudfront.net |
-| API | (voir console) | dv03heuf7nfn6.cloudfront.net |
+| API | (voir console) | d16pjsamtbk0c1.cloudfront.net |
 
 ## Déployer une mise à jour portfolio
 ```powershell

@@ -8,7 +8,7 @@ API REST Spring Boot — lit DynamoDB et expose l'état des postes aux opérateu
 
 ```mermaid
 flowchart LR
-    CF[CloudFront\ndv03heuf7nfn6] --> ALB[ALB\n:80] --> ECS[ECS Fargate\nSpring Boot :8080]
+    CF[CloudFront\nd16pjsamtbk0c1] --> ALB[ALB\n:80] --> ECS[ECS Fargate\nSpring Boot :8080]
     ECS --> DDB[(DynamoDB\nmachine_state)]
     ECS --> CW[CloudWatch Logs\n/ecs/supervision-api]
 ```

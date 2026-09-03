@@ -8,7 +8,7 @@ aws ecs describe-services --cluster smart-assembly-cluster \
   --query 'services[0].{desired:desiredCount,running:runningCount}'
 
 # API health
-curl -s https://dv03heuf7nfn6.cloudfront.net/api/machines | jq length
+curl -s https://d16pjsamtbk0c1.cloudfront.net/api/machines | jq length
 
 # Coût estimé mois en cours
 aws ce get-cost-forecast --time-period Start=2026-08-08,End=2026-09-01 \
