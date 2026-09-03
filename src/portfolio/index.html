@@ -507,6 +507,56 @@
       .apropos-text p { max-width: 100%; }
     }
 
+    /* ── MISSION TERRAIN ── */
+    #terrain { background: var(--surface); }
+    .terrain-desc {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 0.75rem;
+      line-height: 1.6;
+    }
+    .terrain-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+    .terrain-card {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .terrain-card img {
+      width: 100%;
+      height: 420px;
+      object-fit: cover;
+      object-position: center top;
+      display: block;
+    }
+    .terrain-card--portrait img {
+      object-fit: contain;
+      object-position: center center;
+      background: var(--bg);
+    }
+    .terrain-caption {
+      padding: 1rem 1.25rem;
+    }
+    .terrain-caption strong {
+      display: block;
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+    }
+    .terrain-caption span {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    @media (max-width: 640px) {
+      .terrain-grid { grid-template-columns: 1fr; }
+      .terrain-card img { height: 300px; }
+    }
+
     /* ── FOOTER ── */
     footer {
       background: var(--surface); border-top: 1px solid var(--border);
@@ -838,6 +888,7 @@
     <a href="#metrics"      class="nav-close">Métriques</a>
     <a href="#api-live"     class="nav-close">API Live</a>
     <a href="#screenshots"  class="nav-close">Preuves AWS</a>
+    <a href="#terrain"      class="nav-close">Terrain</a>
   </div>
   <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
     <span></span><span></span><span></span>
@@ -1666,6 +1717,23 @@
   </div>
 </section>
 
+<!-- ═══════════════════════════════════════════════ MISSION TERRAIN -->
+<section id="terrain">
+  <div class="container">
+    <div class="section-label">Expérience terrain</div>
+    <h2 class="section-title">Déploiement d'un Système de Gestion de manutention portuaire temps réel · Guadeloupe</h2>
+    <p class="terrain-desc">Architecture distribuée & edge computing en environnement contraint — Traçabilité opérateurs · Intégration TOS · GMG Terminal, Port Autonome de la Guadeloupe · Juillet 2025</p>
+    <div class="terrain-grid">
+      <div class="terrain-card">
+        <img src="./screenshots/photo_1.jpeg" alt="Lansana CONDÉ — Mission terrain, Terminal de Jarry, Guadeloupe" />
+      </div>
+      <div class="terrain-card terrain-card--portrait">
+        <img src="./screenshots/photo_2.jpeg" alt="Lansana CONDÉ — Port Autonome de la Guadeloupe" />
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ═══════════════════════════════════════════════ À PROPOS -->
 <section id="apropos">
   <div class="container">
@@ -1683,7 +1751,10 @@
           résilience chaos engineering et déploiement canary.
         </p>
         <p style="margin-top: 0.75rem;">
-          Cible : postes <strong>Architecte IA & IoT — Cloud AWS</strong> · Décembre 2026.
+          Expérience terrain en environnement industriel contraint — Guadeloupe, Juillet 2025.
+        </p>
+        <p style="margin-top: 0.75rem;">
+          Cible : postes <strong>Architecte IA & IoT — Cloud AWS</strong>.
         </p>
       </div>
     </div>
