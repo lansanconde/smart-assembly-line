@@ -1,7 +1,7 @@
 # Smart Aerospace Assembly Line
 
 > Supervision IoT temps réel d'une ligne d'assemblage aérospatiale — AWS `eu-west-3` · 100% Terraform · Event-driven  
-> **Lansana CONDÉ** · [Portfolio](https://do1vmragia1j9.cloudfront.net) · [LinkedIn](https://www.linkedin.com/in/lansana-conde)
+> **Lansana CONDÉ** · [Portfolio](https://d10fs617x26oub.cloudfront.net) · [LinkedIn](https://www.linkedin.com/in/lansana-conde)
 
 ---
 
@@ -78,7 +78,7 @@ DR            : DynamoDB Global Tables (eu-west-1) · Route 53 Failover
 
 | Service | URL |
 |---------|-----|
-| Portfolio | https://do1vmragia1j9.cloudfront.net |
+| Portfolio | https://d10fs617x26oub.cloudfront.net |
 | API supervision | https://d16pjsamtbk0c1.cloudfront.net/api/machines |
 
 ---
